@@ -1,0 +1,247 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # Stage 1: Run the full test suite before building anything
+  # ──────────────────────────────────────────────────────────────────────────
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # hatch-vcs needs full history for version derivation
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --all-packages --all-extras
+
+      - name: Lint
+        run: make lint
+
+      - name: Run unit tests
+        run: make test
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Stage 2: Build wheels for the server and all router packages
+  # ──────────────────────────────────────────────────────────────────────────
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --all-packages --all-extras
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          TAG="${GITHUB_REF#refs/tags/v}"
+          echo "version=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Building version: ${TAG}"
+
+      - name: Build server wheel
+        run: uv build --wheel --out-dir dist/wheels .
+
+      - name: Build all router wheels
+        run: |
+          for pkg_dir in packages/*/; do
+            if [ -f "${pkg_dir}pyproject.toml" ]; then
+              echo "Building ${pkg_dir}..."
+              uv build --wheel --out-dir dist/wheels "${pkg_dir}"
+            fi
+          done
+
+      - name: List built wheels
+        run: ls -la dist/wheels/
+
+      - name: Verify wheels are installable
+        run: |
+          python -m venv /tmp/verify-env
+          /tmp/verify-env/bin/pip install --find-links dist/wheels dist/wheels/*.whl
+          /tmp/verify-env/bin/psmcp --help
+          echo "All wheels install cleanly and CLI is functional."
+
+      - name: Assemble deployment package
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          DEPLOY_DIR="dist/ps-mcp-${VERSION}"
+          mkdir -p "${DEPLOY_DIR}/wheels"
+          mkdir -p "${DEPLOY_DIR}/config"
+
+          # Copy wheels
+          cp dist/wheels/*.whl "${DEPLOY_DIR}/wheels/"
+
+          # Copy deployment helpers
+          cp .env.sample "${DEPLOY_DIR}/.env.sample"
+          [ -f deploy/docker/Dockerfile ] && cp deploy/docker/Dockerfile "${DEPLOY_DIR}/Dockerfile"
+          [ -f deploy/docker/docker.sh ] && cp deploy/docker/docker.sh "${DEPLOY_DIR}/docker.sh" && chmod +x "${DEPLOY_DIR}/docker.sh"
+          [ -f deploy/linux/ps-mcp.service ] && cp deploy/linux/ps-mcp.service "${DEPLOY_DIR}/ps-mcp.service"
+
+          # Copy install scripts from deploy directory
+          cp deploy/linux/install.sh "${DEPLOY_DIR}/install.sh" 2>/dev/null || true
+          cp deploy/windows/install.ps1 "${DEPLOY_DIR}/install.ps1" 2>/dev/null || true
+          chmod +x "${DEPLOY_DIR}/install.sh" 2>/dev/null || true
+
+          # Copy DEPLOYMENT.md instructions
+          cp .github/DEPLOYMENT.md "${DEPLOY_DIR}/DEPLOYMENT.md" 2>/dev/null || true
+
+          # Create archives
+          cd dist
+          tar czf "ps-mcp-${VERSION}.tar.gz" "ps-mcp-${VERSION}/"
+          zip -r "ps-mcp-${VERSION}.zip" "ps-mcp-${VERSION}/"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-package
+          path: |
+            dist/ps-mcp-${{ steps.version.outputs.version }}.tar.gz
+            dist/ps-mcp-${{ steps.version.outputs.version }}.zip
+            dist/wheels/
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Stage 3: Smoke-test the deployment package in a clean environment
+  # ──────────────────────────────────────────────────────────────────────────
+  verify:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-package
+          path: dist/
+
+      - name: Extract and install from tarball
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          cd dist
+          tar xzf "ps-mcp-${VERSION}.tar.gz"
+          cd "ps-mcp-${VERSION}"
+
+          # Simulate a real deployment using the install script
+          python3.13 -m venv /tmp/ps-mcp-test/.venv
+          /tmp/ps-mcp-test/.venv/bin/pip install --find-links wheels wheels/*.whl
+
+      - name: Verify CLI starts
+        run: |
+          /tmp/ps-mcp-test/.venv/bin/psmcp --help
+
+      - name: Verify server starts and responds to health check
+        run: |
+          # Start server in background with minimal config
+          export MCP_TRANSPORT=http
+          export MCP_HOST=127.0.0.1
+          export MCP_PORT=8888
+          /tmp/ps-mcp-test/.venv/bin/psmcp serve &
+          SERVER_PID=$!
+
+          # Wait for server to be ready (up to 30s)
+          for i in $(seq 1 30); do
+            if curl -sf http://127.0.0.1:8888/health > /dev/null 2>&1; then
+              echo "Server is healthy after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+
+          # Verify health endpoint
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8888/health)
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Health check failed with HTTP ${HTTP_CODE}"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
+
+          echo "Server health check passed (HTTP 200)"
+          kill $SERVER_PID 2>/dev/null || true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Stage 4: Create the GitHub Release with artifacts attached
+  # ──────────────────────────────────────────────────────────────────────────
+  release:
+    needs: verify
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download deployment package
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-package
+          path: dist/
+
+      - name: Extract changelog for this version
+        id: changelog
+        run: |
+          VERSION="${GITHUB_REF#refs/tags/v}"
+          # Extract the section for this version from CHANGELOG.md
+          # Falls back to the [Unreleased] section if the version section doesn't exist yet
+          NOTES=$(awk -v ver="$VERSION" '
+            /^## \[/ {
+              if (found) exit
+              if ($0 ~ "\\[" ver "\\]" || $0 ~ "\\[Unreleased\\]") found=1
+              next
+            }
+            found { print }
+          ' CHANGELOG.md)
+
+          if [ -z "$NOTES" ]; then
+            NOTES="Release ${VERSION}. See CHANGELOG.md for details."
+          fi
+
+          # Write to file for the release body (handles multiline)
+          echo "$NOTES" > /tmp/release-notes.md
+
+      - name: Derive version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: /tmp/release-notes.md
+          files: |
+            dist/ps-mcp-${{ steps.version.outputs.version }}.tar.gz
+            dist/ps-mcp-${{ steps.version.outputs.version }}.zip
+          fail_on_unmatched_files: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
