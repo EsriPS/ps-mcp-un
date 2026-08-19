@@ -1,0 +1,24 @@
+[project]
+name = "psmcp-router-postgres"
+description = "PS-MCP router plugin: postgres (pgvector search via LangChain)."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dynamic = ["version"]
+dependencies = [
+    "ps-mcp>=0.1.0,<1.0",
+    "langchain-openai>=1.0.2,<2",
+    "langchain-postgres>=0.0.16,<1",
+]
+[project.entry-points."psmcp.routers"]
+postgres = "psmcp_router_postgres:postgres_router"
+[build-system]
+requires = ["hatchling>=1.25", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+[tool.hatch.version]
+source = "vcs"
+raw-options = { root = "../.." }
+fallback-version = "0.1.0"
+[tool.hatch.build.hooks.vcs]
+version-file = "src/psmcp_router_postgres/_version.py"
+[tool.hatch.build.targets.wheel]
+packages = ["src/psmcp_router_postgres"]

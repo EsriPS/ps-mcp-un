@@ -1,0 +1,56 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/ubuntu
+{
+	"name": "Ubuntu",
+	
+  // Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
+  // image tag list: https://mcr.microsoft.com/v2/devcontainers/base/tags/list
+	"image": "mcr.microsoft.com/devcontainers/base:2.1.6-ubuntu24.04",
+
+  "containerEnv": {
+      "UV_LINK_MODE": "copy"
+  },
+
+  "remoteEnv": {
+      "UV_LINK_MODE": "copy"
+  },
+
+	"features": {
+    // https://github.com/devcontainers/features/tree/main/src/docker-outside-of-docker
+		"ghcr.io/devcontainers/features/docker-outside-of-docker:1.9.1": {
+			"installDockerBuildx": true,
+			"version": "latest",
+			"dockerDashComposeVersion": "latest"
+		},
+    // https://github.com/devcontainers/features/tree/main/src/python
+		"ghcr.io/devcontainers/features/python:1.8.0": {
+			"installTools": true,
+			"version": "3.13"
+		},
+    // https://github.com/devcontainers-extra/features/tree/main/src/uv
+		"ghcr.io/devcontainers-extra/features/uv:1.0.2": {
+			"version": "0.11.3"
+		}
+	},
+
+	"runArgs": [
+    "--network=host"
+  ],
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.vscode-pylance"
+      ]
+    }
+  },
+
+  // Use 'forwardPorts' to make a list of ports inside the container available locally.
+  "forwardPorts": [8000],
+
+  // Use 'postCreateCommand' to run commands after the container is created.
+  "postCreateCommand": "uv sync"
+
+	// Uncomment to connect as root instead. More info: https://aka.ms/dev-containers-non-root.
+	// "remoteUser": "root"
+}
