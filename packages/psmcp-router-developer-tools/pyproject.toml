@@ -1,0 +1,29 @@
+[project]
+name = "psmcp-router-developer-tools"
+description = "PS-MCP router plugin: developer_tools (skills and code samples from GitHub and local sources)."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dynamic = ["version"]
+dependencies = [
+    "ps-mcp>=0.1.0,<1.0",
+    "httpx>=0.27,<1",
+    "pyyaml>=6.0,<7",
+]
+
+[project.entry-points."psmcp.routers"]
+developer_tools = "psmcp_router_developer_tools:developer_tools_router"
+
+[build-system]
+requires = ["hatchling>=1.25", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { root = "../.." }
+fallback-version = "0.1.0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/psmcp_router_developer_tools/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/psmcp_router_developer_tools"]

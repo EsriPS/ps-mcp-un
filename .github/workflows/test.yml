@@ -1,0 +1,36 @@
+name: Run Tests
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Check out the repository code
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # 2. Install the 'uv' package manager
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+
+    # 3. Set up Python 3.13
+    - name: Set up Python 3.13
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    # 4. Install dependencies using uv (matches Makefile install target)
+    - name: Install dependencies
+      run: uv sync --all-packages --all-extras
+
+    # 5. Run the test suite via the Makefile
+    - name: Run unit tests
+      run: make test
