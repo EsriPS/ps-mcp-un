@@ -1,0 +1,27 @@
+[project]
+name = "psmcp-router-feature-service"
+description = "PS-MCP router plugin: feature_service (ArcGIS FeatureServer queries)."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dynamic = ["version"]
+dependencies = [
+    "ps-mcp>=0.1.0,<1.0",
+]
+
+[project.entry-points."psmcp.routers"]
+feature_service = "psmcp_router_feature_service:feature_service_router"
+
+[build-system]
+requires = ["hatchling>=1.25", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+raw-options = { root = "../.." }
+fallback-version = "0.1.0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/psmcp_router_feature_service/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/psmcp_router_feature_service"]

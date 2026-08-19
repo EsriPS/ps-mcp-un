@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Tag Release",
+  "description": "Creates and pushes an annotated git tag after a release PR has been merged. Run this on main after merging a release/vX.Y.Z PR to trigger the release workflow.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Perform the following tagging steps:\n\n1. Confirm we are on the `main` branch. If not, ask the user to switch first.\n2. Run `git pull` to ensure main is up to date with the merged release PR.\n3. Read CHANGELOG.md and find the most recent versioned section (the first ## [X.Y.Z] heading) to determine the version to tag.\n4. Confirm with the user: \"Ready to tag vX.Y.Z and push. This will trigger the release workflow. Proceed?\"\n5. Create an annotated git tag: `git tag -a vX.Y.Z -m \"Release vX.Y.Z\"`\n6. Push the tag: `git push origin vX.Y.Z`\n7. Confirm the tag was pushed successfully and remind the user to check GitHub Actions for the release workflow status."
+  }
+}

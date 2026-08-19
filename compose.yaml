@@ -1,0 +1,32 @@
+name: ps-mcp-server
+
+services:
+  ps-mcp-server:
+    image: ps-mcp:latest
+    build:
+        context: .
+        dockerfile: ./Dockerfile
+        tags: 
+          - ps-mcp:latest
+          - ps-mcp:${IMAGE_TAG:-latest}
+    ports:
+      - "${MCP_PORT-8888}:${MCP_PORT-8888}"
+    env_file:
+      - ${ENV_FILE:-./.env}
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    networks:
+      ps-mcp-network:
+        aliases:
+          - ps-mcp
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${MCP_PORT-8888}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  ps-mcp-network:
+    name: ps-mcp-network

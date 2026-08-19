@@ -1,0 +1,29 @@
+[project]
+name = "psmcp-router-dynamic-app"
+description = "PS-MCP router plugin: dynamic app (MCP Apps map viewer with app-side tools)."
+readme = "README.md"
+requires-python = ">=3.13,<3.14"
+dynamic = ["version"]
+dependencies = [
+    "ps-mcp>=0.1.0,<1.0",
+    "openai>=2.6.1,<3",
+]
+
+[project.entry-points."psmcp.routers"]
+dynamic_app = "psmcp_router_dynamic_app:dynamic_app_router"
+
+[build-system]
+requires = ["hatchling>=1.25", "hatch-vcs>=0.4"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+# Use the monorepo root's git history so all packages share one version.
+raw-options = { root = "../.." }
+fallback-version = "0.1.0"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "src/psmcp_router_dynamic_app/_version.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/psmcp_router_dynamic_app"]

@@ -1,0 +1,152 @@
+version: "1.0.0"
+title: "Hot Spot Analysis"
+description: >
+  Runs SpatialAnalysisTools/FindHotSpots against a user-specified analysis layer
+  within an approximate bounding rectangle around a geocoded location.
+
+parameters:
+  - key: location
+    input_type: string
+    requirement: required
+    description: "Location to analyze around (e.g., Washington, DC)"
+
+  - key: analysis_layer_search
+    input_type: string
+    requirement: required
+    description: "Search term to find the analysis layer in portal (e.g., 'Smithsonian plants', 'crime incidents')"
+
+  - key: search_radius_miles
+    input_type: number
+    requirement: optional
+    default: "100"
+    description: "Used to build an approximate bounding rectangle (miles)"
+
+  - key: cell_size_miles
+    input_type: number
+    requirement: optional
+    default: "5"
+    description: "Hex cell size (miles)"
+
+  - key: output_service_name
+    input_type: string
+    requirement: optional
+    default: "hotspot_analysis_{location}_{timestamp}"
+    description: "Output hosted layer/service name (auto-generated if not provided)"
+
+activities:
+  - "Run the hot spot analysis now"
+
+instructions: |
+  You are a GIS assistant. Use the ArcGIS tools available to you to run a hot spot analysis.
+
+  Workflow:
+
+  1) Search for the analysis layer.
+     - Use psmcp__search_portal with query based on {{ analysis_layer_search }}.
+     - Present matching layers to confirm which one to use if multiple results.
+     - Extract the feature layer URL from the selected item.
+
+  2) Find the FindHotSpots geoprocessing service.
+     - First, use psmcp__list_system_services to look for SpatialAnalysisTools or FindHotSpots.
+     - If not found via system services, fall back to psmcp__search_portal with query "FindHotSpots" or "SpatialAnalysisTools" (type: "Geoprocessing Service").
+     - Confirm the GP task schema by calling psmcp__get_gp_task_details with the discovered service URL and task_name=FindHotSpots.
+
+  3) Geocode the location.
+     - Use psmcp__find_address_candidates with {{ location }}.
+     - Extract the x, y coordinates from the response.
+
+  4) Build a rectangular bounding polygon.
+     - Buffer the location by {{ search_radius_miles }} miles.
+     - Create a bounding rectangle centered on the geocoded point using +/- delta in X and Y.
+     - Format as an esriGeometryPolygon featureSet.
+
+  5) Execute FindHotSpots.
+     - Use psmcp__execute_gp_task with the discovered gp_service_url, task_name=FindHotSpots, execution_type=esriExecutionTypeAsynchronous.
+     - Parameters format:
+       {
+         "analysisLayer": {
+           "url": "<discovered_layer_url>"
+         },
+         "boundingPolygonLayer": {
+           "featureSet": {
+             "geometryType": "esriGeometryPolygon",
+             "spatialReference": {
+               "wkid": 102100
+             },
+             "features": [
+               {
+                 "attributes": {
+                   "objectid": 1
+                 },
+                 "geometry": {
+                   "rings": [
+                     [
+                       [<xmin>, <ymin>],
+                       [<xmax>, <ymin>],
+                       [<xmax>, <ymax>],
+                       [<xmin>, <ymax>],
+                       [<xmin>, <ymin>]
+                     ]
+                   ]
+                 }
+               }
+             ]
+           },
+           "layerDefinition": {
+             "name": "<location>_bounding_rect",
+             "geometryType": "esriGeometryPolygon",
+             "fields": [
+               {
+                 "name": "objectid",
+                 "type": "esriFieldTypeOID",
+                 "alias": "objectid"
+               }
+             ]
+           }
+         },
+         "shapeType": "Hexagon",
+         "cellSize": {{ cell_size_miles }},
+         "cellSizeUnits": "Miles",
+         "outputName": "{\"serviceProperties\":{\"name\":\"<output_service_name>\"},\"itemProperties\":{\"title\":\"<output_title>\"}}"
+       }
+     - If {{ output_service_name }} is not provided, generate one based on the analysis layer name and location (e.g., "plants_hotspots_dc_hex5mi").
+
+  6) Poll status until success/failure.
+     - Use psmcp__check_gp_job_status with the job URL returned from execute.
+     - On success, call psmcp__get_gp_job_results and report:
+       - jobId
+       - output hotSpotsResultLayer (url + itemId if present)
+       - any warnings/messages (e.g., chordal distance warning)
+  
+  7) Open a Layers Map centered on the location and add the resulting hot spots layer as well as the analysis layer.
+    - Use psmcp__open_layers_map with the discovered layer URLs and center on the geocoded location.
+    - Ask that the result layer have a transparency set to 50% to allow comparison with the analysis layer.
+    - Ask that the result layer display only where gi_bin > 0 to focus on statistically significant hot spots.
+    - Ask for popups to be enabled on both layers.
+
+  Important notes:
+  - If you encounter any GPMultiValue parameters in other GP tasks, pass them as arrays (e.g., ["value1","value2"]).
+  - Prefer the rectangle bounding polygon method over CreateBuffers.
+
+prompt: "Run a hot spot analysis for {{ analysis_layer_search }} around {{ location }}."
+
+response:
+  json_schema:
+    type: object
+    properties:
+      analysis_layer_url:
+        type: string
+        description: "URL of the analysis layer used"
+      job_id:
+        type: string
+      status:
+        type: string
+      hotspots_layer_url:
+        type: string
+      hotspots_item_id:
+        type: string
+      messages:
+        type: array
+        items:
+          type: string
+    required: ["analysis_layer_url", "job_id", "status", "hotspots_layer_url", "messages"]

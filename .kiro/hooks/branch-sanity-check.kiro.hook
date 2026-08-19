@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Branch Sanity Check",
+  "description": "Reviews all code changes in the current branch for best practices compliance and runs the linter to catch issues before committing or pushing.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review all code changes in the current git branch (compared to main). For each changed file: 1) Check that the code follows the project's best practices from .skills/guidance-best-practices.md and the steering conventions. 2) Look for common issues like missing type hints, bare excepts, f-strings in log calls, hardcoded secrets, or missing docstrings. 3) Run `uv run ruff check .` to lint the codebase and report any findings. 4) Check whether any new or modified public functions lack corresponding unit tests in the tests/ directory, and flag any existing tests that may need updating due to changed function signatures or behavior. Summarize what looks good and what needs attention."
+  }
+}
