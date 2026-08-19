@@ -1,0 +1,1017 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "Initialize project with `uv init`": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925347659
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925355281
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925467071
+      }
+    ],
+    "Add dependencies: `mcp[cli]`, `httpx`, `python-dotenv`": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925347944
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925470499
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925553568
+      }
+    ],
+    "Create `discover.py` with MCP client connection to `https://util-ent01.esri.com/psmcp`": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348063
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925557168
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925665273
+      }
+    ],
+    "Implement Streamable HTTP transport with SSE fallback": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348164
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925668964
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925770349
+      }
+    ],
+    "Handle connection errors gracefully (timeout, auth, wrong transport)": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348212
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925773548
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926033640
+      }
+    ],
+    "Verify: script connects and prints connection status": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348271
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926037005
+      }
+    ],
+    "Send `tools/list` request after connection": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348327
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926267953
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926360994
+      }
+    ],
+    "Capture tool name, description, input schema, output schema for each tool": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348379
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926364715
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926521059
+      }
+    ],
+    "Categorize tools by function (auth, query, trace, metadata, other)": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348474
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926524535
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926707998
+      }
+    ],
+    "Format as readable markdown report": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348526
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926711693
+      }
+    ],
+    "Save to `discovery_report.md`": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348578
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784926867971
+      }
+    ],
+    "Highlight tools related to trace, utility network, query, associations": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348628
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784927136430
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784927382885
+      }
+    ],
+    "Define required capabilities checklist (15 items)": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348695
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784927387607
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784927719691
+      }
+    ],
+    "Match discovered tools against checklist": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348754
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784927723604
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784928000686
+      }
+    ],
+    "Classify each as SUPPORTED, PARTIAL, or GAP": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348812
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784928004625
+      }
+    ],
+    "Generate summary table with recommendations": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348865
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784928195449
+      }
+    ],
+    "Append gap analysis to `discovery_report.md`": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348924
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784928457425
+      }
+    ],
+    "Verify: report is actionable for next planning phase": [
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784925348976
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784928539866
+      },
+      {
+        "executionId": "1d2c747b-1b6e-46db-be8c-1aad95fc5345",
+        "chatSessionId": "sess_cbb40e1f-c0aa-417d-a76b-ed5f6e1c1afd",
+        "timestamp": 1784928675089
+      }
+    ],
+    "Create `metadata.py` with module-level data element cache and `_get_data_element(service_url, token)` helper": [
+      {
+        "executionId": "900e1b5f-21a6-4820-baa4-6cc86ef63e5d",
+        "chatSessionId": "sess_2e2769db-1b38-42d3-bd6c-98c8e8c6b3f4",
+        "timestamp": 1785256129594
+      },
+      {
+        "executionId": "84568ffc-04a5-417b-bd03-9c03f763f00c",
+        "chatSessionId": "sess_52a499de-c985-4f2d-96e5-517da5dde1a8",
+        "timestamp": 1785263244282
+      },
+      {
+        "executionId": "84568ffc-04a5-417b-bd03-9c03f763f00c",
+        "chatSessionId": "sess_52a499de-c985-4f2d-96e5-517da5dde1a8",
+        "timestamp": 1785264326847
+      }
+    ],
+    "Implement `network_get_domain_networks` — returns domain networks with tiers, topology type, tier groups": [
+      {
+        "executionId": "5cf2b29d-fd76-45f4-b952-206ea9ecfded",
+        "chatSessionId": "sess_263e71a0-0923-4bbb-95bb-933a61ae4aa6",
+        "timestamp": 1785265000321
+      },
+      {
+        "executionId": "5cf2b29d-fd76-45f4-b952-206ea9ecfded",
+        "chatSessionId": "sess_263e71a0-0923-4bbb-95bb-933a61ae4aa6",
+        "timestamp": 1785268883501
+      }
+    ],
+    "Implement `network_get_asset_types(domain_network?, source_name?)` — returns asset groups/types with codes, categories, terminal config IDs": [
+      {
+        "executionId": "bf96b0ac-dcea-40e6-9a37-38e9e4e9f16b",
+        "chatSessionId": "sess_e91f06c4-94b3-4a69-9b41-a2e4a581b75f",
+        "timestamp": 1785269430043
+      },
+      {
+        "executionId": "826181bb-7266-4595-8ddf-873e1cb68d41",
+        "chatSessionId": "sess_e7b799bc-b869-43a6-8647-27eb24a182cc",
+        "timestamp": 1785272271464
+      },
+      {
+        "executionId": "826181bb-7266-4595-8ddf-873e1cb68d41",
+        "chatSessionId": "sess_e7b799bc-b869-43a6-8647-27eb24a182cc",
+        "timestamp": 1785273599915
+      }
+    ],
+    "Implement `network_get_network_attributes` — returns network attributes with data type, domain, usage": [
+      {
+        "executionId": "bddd29ea-555f-4588-93ee-3d6b1b9fd571",
+        "chatSessionId": "sess_0926ee20-e8ec-485d-a586-0b71116ed09f",
+        "timestamp": 1785274410793
+      },
+      {
+        "executionId": "bddd29ea-555f-4588-93ee-3d6b1b9fd571",
+        "chatSessionId": "sess_0926ee20-e8ec-485d-a586-0b71116ed09f",
+        "timestamp": 1785275076654
+      }
+    ],
+    "Implement `network_get_terminal_configurations` — returns terminal configs with names, paths, direction": [
+      {
+        "executionId": "cb53e6b4-8cec-4d9f-a562-f488e82c6a93",
+        "chatSessionId": "sess_846c03ba-8603-4be7-a3c7-8b024e131987",
+        "timestamp": 1785275236698
+      },
+      {
+        "executionId": "613b2316-a2a4-45f3-8232-68c04769ced4",
+        "chatSessionId": "sess_59bfd741-b56c-456e-9011-ad63e8986ad3",
+        "timestamp": 1785275600446
+      },
+      {
+        "executionId": "613b2316-a2a4-45f3-8232-68c04769ced4",
+        "chatSessionId": "sess_59bfd741-b56c-456e-9011-ad63e8986ad3",
+        "timestamp": 1785275902657
+      }
+    ],
+    "Implement `network_get_categories` — returns categories with member asset types": [
+      {
+        "executionId": "7fa9a17e-d363-4747-953b-ae5e9072671b",
+        "chatSessionId": "sess_6eb82337-4451-4a81-81a5-23bc0034edf5",
+        "timestamp": 1785276404825
+      },
+      {
+        "executionId": "7fa9a17e-d363-4747-953b-ae5e9072671b",
+        "chatSessionId": "sess_6eb82337-4451-4a81-81a5-23bc0034edf5",
+        "timestamp": 1785276421653
+      }
+    ],
+    "Implement `network_refresh_metadata` — invalidates cache, confirms re-fetch": [
+      {
+        "executionId": "de2e2e16-8686-4e83-8794-3645d349b333",
+        "chatSessionId": "sess_a51a5411-0ed9-46b0-9aa3-c35ad04c9d53",
+        "timestamp": 1785276683211
+      },
+      {
+        "executionId": "de2e2e16-8686-4e83-8794-3645d349b333",
+        "chatSessionId": "sess_a51a5411-0ed9-46b0-9aa3-c35ad04c9d53",
+        "timestamp": 1785276694945
+      }
+    ],
+    "Import `metadata` module in `__init__.py` to ensure tools are registered at import time": [
+      {
+        "executionId": "fa4ecb82-234b-4005-a150-a889de8036cd",
+        "chatSessionId": "sess_78e9c8ff-599b-4706-ad59-9c2766126bc5",
+        "timestamp": 1785276762489
+      },
+      {
+        "executionId": "fa4ecb82-234b-4005-a150-a889de8036cd",
+        "chatSessionId": "sess_78e9c8ff-599b-4706-ad59-9c2766126bc5",
+        "timestamp": 1785276769505
+      }
+    ],
+    "Unit tests with mocked `_un_data_element` response; verify parsing, caching, and cache invalidation": [
+      {
+        "executionId": "948cfeae-f443-4f9a-ae9f-3699f74136f7",
+        "chatSessionId": "sess_320ad987-f2ec-4a90-bb72-7164ca316e79",
+        "timestamp": 1785276823704
+      },
+      {
+        "executionId": "948cfeae-f443-4f9a-ae9f-3699f74136f7",
+        "chatSessionId": "sess_320ad987-f2ec-4a90-bb72-7164ca316e79",
+        "timestamp": 1785278907996
+      }
+    ],
+    "Create `associations.py` with `network_query_associations` tool": [
+      {
+        "executionId": "62e063f8-02f2-4287-8357-285df5bda178",
+        "chatSessionId": "sess_7dd7df18-de55-47bb-b9be-d96bca24f94d",
+        "timestamp": 1785425477589
+      },
+      {
+        "executionId": "62e063f8-02f2-4287-8357-285df5bda178",
+        "chatSessionId": "sess_7dd7df18-de55-47bb-b9be-d96bca24f94d",
+        "timestamp": 1785425786572
+      }
+    ],
+    "POST to associations endpoint with `globalIds` and optional `associationTypes` filter": [
+      {
+        "executionId": "9681a083-23c9-44ed-b20e-9b09e5239d0b",
+        "chatSessionId": "sess_7a3df244-027c-44ac-9c76-704fb05ea5e6",
+        "timestamp": 1785425857135
+      },
+      {
+        "executionId": "9681a083-23c9-44ed-b20e-9b09e5239d0b",
+        "chatSessionId": "sess_7a3df244-027c-44ac-9c76-704fb05ea5e6",
+        "timestamp": 1785426005779
+      }
+    ],
+    "Resolve all numeric codes to names using cached data element: `associationType` → name, `networkSourceId` → source name, `terminalId` → terminal name, `assetGroupCode`/`assetTypeCode` → group/type names": [
+      {
+        "executionId": "38999fd5-b12c-4a33-9f1f-59e47c17b957",
+        "chatSessionId": "sess_caf2878d-1093-48c5-aa0c-842ddcf0d813",
+        "timestamp": 1785426022670
+      },
+      {
+        "executionId": "38999fd5-b12c-4a33-9f1f-59e47c17b957",
+        "chatSessionId": "sess_caf2878d-1093-48c5-aa0c-842ddcf0d813",
+        "timestamp": 1785426182856
+      }
+    ],
+    "Import module in `__init__.py`": [
+      {
+        "executionId": "2524019c-5643-4704-a348-045e57a7a748",
+        "chatSessionId": "sess_ccbfd065-2a8c-45fe-8358-1ab3db91b31e",
+        "timestamp": 1785426211387
+      },
+      {
+        "executionId": "f4730db8-218d-43d5-a971-2cce0b7b091c",
+        "chatSessionId": "sess_9c76b791-2fa3-40b7-8053-9b7328a5752b",
+        "timestamp": 1785427776510
+      },
+      {
+        "executionId": "f4730db8-218d-43d5-a971-2cce0b7b091c",
+        "chatSessionId": "sess_9c76b791-2fa3-40b7-8053-9b7328a5752b",
+        "timestamp": 1785427858247
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448175531
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448175612
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448175663
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176157
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785450997252
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785451044826
+      }
+    ],
+    "Create `domain_resolver.py` with layer metadata cache (`_cached_layer_metadata` dict keyed by layer URL)": [
+      {
+        "executionId": "eeb53984-1591-45f7-aff6-e2f2f55c3b9c",
+        "chatSessionId": "sess_ac7e127e-56be-49e1-9e84-ae01847d7114",
+        "timestamp": 1785437875497
+      },
+      {
+        "executionId": "eeb53984-1591-45f7-aff6-e2f2f55c3b9c",
+        "chatSessionId": "sess_ac7e127e-56be-49e1-9e84-ae01847d7114",
+        "timestamp": 1785437977029
+      }
+    ],
+    "Unit tests: resolution with subtype domains, fields without domains unchanged, cache behavior, standalone tool": [
+      {
+        "executionId": "2717be72-74f1-485a-bc00-67d5d310b992",
+        "chatSessionId": "sess_fcde94e9-4497-4e1d-9476-bb3d7868bbc1",
+        "timestamp": 1785437992307
+      },
+      {
+        "executionId": "aa6a4562-6884-48f7-b1bc-e25432dda15c",
+        "chatSessionId": "sess_a3025be3-4c72-4b84-a130-4ce0921519b7",
+        "timestamp": 1785439914771
+      },
+      {
+        "executionId": "aa6a4562-6884-48f7-b1bc-e25432dda15c",
+        "chatSessionId": "sess_a3025be3-4c72-4b84-a130-4ce0921519b7",
+        "timestamp": 1785439994625
+      }
+    ],
+    "Implement `_get_layer_metadata(layer_url, token)` — fetches and caches layer JSON (using httpx or GIS connection)": [
+      {
+        "executionId": "1fa86cac-2cc4-46af-b7dc-1d7af314c8be",
+        "chatSessionId": "sess_f3a561d0-942c-44db-9cbf-adb47b2e8f5c",
+        "timestamp": 1785438042297
+      },
+      {
+        "executionId": "1fa86cac-2cc4-46af-b7dc-1d7af314c8be",
+        "chatSessionId": "sess_f3a561d0-942c-44db-9cbf-adb47b2e8f5c",
+        "timestamp": 1785438797187
+      }
+    ],
+    "Implement `resolve_subtype_domains(features, layer_metadata)` — the core resolution logic": [
+      {
+        "executionId": "4f9e1f79-cf06-474d-876c-1ee5548f6eef",
+        "chatSessionId": "sess_0bea596a-9c40-4021-91b9-ec8cec0082b4",
+        "timestamp": 1785438814611
+      },
+      {
+        "executionId": "4f9e1f79-cf06-474d-876c-1ee5548f6eef",
+        "chatSessionId": "sess_0bea596a-9c40-4021-91b9-ec8cec0082b4",
+        "timestamp": 1785438849658
+      }
+    ],
+    "Implement `network_resolve_coded_values(features, layer_url, token?)` tool — fetches metadata + calls resolver": [
+      {
+        "executionId": "8595fb69-a995-4660-bd9b-6eb78fb9958e",
+        "chatSessionId": "sess_346106f2-f1e2-410b-a1c3-a16266005444",
+        "timestamp": 1785438870208
+      },
+      {
+        "executionId": "8595fb69-a995-4660-bd9b-6eb78fb9958e",
+        "chatSessionId": "sess_346106f2-f1e2-410b-a1c3-a16266005444",
+        "timestamp": 1785439065910
+      }
+    ],
+    "Handle edge cases: missing subtypeField (no subtypes → use default field domains), null feature values, unknown subtype codes": [
+      {
+        "executionId": "2b151198-9471-4094-ba23-b51c673c5717",
+        "chatSessionId": "sess_9223aca0-133e-4e3d-97c0-85d7b1a9628b",
+        "timestamp": 1785439080689
+      },
+      {
+        "executionId": "2b151198-9471-4094-ba23-b51c673c5717",
+        "chatSessionId": "sess_9223aca0-133e-4e3d-97c0-85d7b1a9628b",
+        "timestamp": 1785439362356
+      }
+    ],
+    "Unit test: verify output contains {code, label} structure for resolved fields": [
+      {
+        "executionId": "9f99dec2-3268-40a6-b194-28f34a5a717f",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785440010658
+      },
+      {
+        "executionId": "9f99dec2-3268-40a6-b194-28f34a5a717f",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785440577787
+      }
+    ],
+    "Create `workflows.py` importing existing helpers (`get_device_terminals`, `run_trace`, `_connect_gis`, `_get_data_element`, formatting helpers, `resolve_subtype_domains`, `_get_layer_metadata`)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448175712
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448214283
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448460681
+      }
+    ],
+    "Implement `_enrich_trace_elements(elements, data_element)` — resolves networkSourceId → sourceName, assetGroupCode → assetGroupName, assetTypeCode → assetTypeName using the cached data element (shared with traces.py or imported from there)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448175763
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448466874
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448734409
+      }
+    ],
+    "Implement `network_downstream_customer_impact(global_id, terminal_id?, domain_network_name?, tier_name?, customer_layer_url?, customer_join_field?, service_point_layer_url?, network_service_url?, token?)`:": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448175816
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448740431
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785449071171
+      }
+    ],
+    "Implement `network_isolation_analysis(global_id, terminal_id?, domain_network_name?, tier_name?, network_service_url?, token?)`:": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448175870
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785449077214
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785449314523
+      }
+    ],
+    "Implement `_identify_protective_devices(elements, data_element)` internal helper:": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448175955
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785449320152
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785449554424
+      }
+    ],
+    "Implement `_minimize_start_points(gis, service_url, elements, data_element)` internal helper:": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176004
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785449559802
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785449727388
+      }
+    ],
+    "Implement `network_spatial_impact(geometry, geometry_type, spatial_ref?, domain_network_name?, tier_name?, customer_layer_url?, customer_join_field?, service_point_layer_url?, network_service_url?, token?)`:": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176057
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785449732939
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785450091595
+      }
+    ],
+    "Implement graceful fallback: when customer config is provided but the layer/field doesn't exist or query fails, return trace results with an error note (don't fail the entire workflow)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176105
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785450097358
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785450239846
+      }
+    ],
+    "Unit tests with mocked arcgis calls verifying:": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176216
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785450245666
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785450986619
+      }
+    ],
+    "Front-matter with `inclusion: manual`": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176273
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176801
+      },
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177579
+      }
+    ],
+    "Decision tree: which tool for which question type": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176324
+      }
+    ],
+    "Named traces first strategy: discover → match → offer → execute (or fallback)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176372
+      }
+    ],
+    "Terminal selection logic (downstream → low terminal, upstream → high terminal)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176431
+      }
+    ],
+    "Tier-terminal directional coupling for multi-tier devices": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176479
+      }
+    ],
+    "Explain `network_device_terminals` resolves BOTH terminal and tier": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176539
+      }
+    ],
+    "How to get starting GlobalID (from user, query, spatial selection)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176587
+      }
+    ],
+    "Trace configuration strategy: named traces for complex workflows (barriers, functions, propagators); `network_trace` for simple traces; recommend GIS admin publish named traces when gap exists": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176637
+      }
+    ],
+    "Customer data resolution as a conditional workflow step — explain that workflow tools only resolve customers when explicit config is provided": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176707
+      }
+    ],
+    "Discovery-first pattern: the LLM discovers customer data before calling workflow tools, not after": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176754
+      }
+    ],
+    "Core rule: NEVER assume asset group/type — always verify via `network_get_asset_types()`": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176855
+      }
+    ],
+    "Disambiguation strategy: common name → metadata → present options": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176908
+      }
+    ],
+    "Common term hints (transformer, switch, fuse, pole, conductor)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448176958
+      }
+    ],
+    "Use CODES in filters, not descriptions": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177005
+      }
+    ],
+    "Session initialization: call `network_get_domain_networks()` to orient": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177050
+      }
+    ],
+    "Three levels: layer → asset group → asset type": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177105
+      }
+    ],
+    "Address → service point resolution strategy (discovery-based, no standard method)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177151
+      }
+    ],
+    "Data quality warnings (billing ≠ service address, geocode uncertainty)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177261
+      }
+    ],
+    "Subtype domain resolution: UN workflow tools auto-resolve coded values; when using `query_feature_layer` directly on UN layers, call `network_resolve_coded_values` or inspect layer metadata via `get_service_or_layer_details` to interpret codes": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177310
+      }
+    ],
+    "Customer data discovery pattern: probe service layers/tables for customer-like sources (CIS, customer, account, subscriber, consumer, ratepayer, billing, meter), sample candidates, verify join relationship to service points, present to user for confirmation": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177360
+      }
+    ],
+    "Explain that customer layer names and join fields are NEVER standardized — each utility uses different naming and relationships": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177423
+      }
+    ],
+    "Common relationship patterns: meter_id join, account_number join, service_point GlobalID join, premise_id join, spatial proximity": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177476
+      }
+    ],
+    "Instruct LLM to pass discovered config to workflow tools via explicit parameters (customer_layer_url, customer_join_field)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177528
+      }
+    ],
+    "How to read trace results (elements, sourceMapping, globalFunctionResults)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177628
+      }
+    ],
+    "Phase bitfield interpretation (A=4, B=2, C=1, ABC=7)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177685
+      }
+    ],
+    "Subnetwork controller significance": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177747
+      }
+    ],
+    "Tier context in results": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177795
+      }
+    ],
+    "Plain-language explanation patterns": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177845
+      }
+    ],
+    "Identifying unexpected results (empty, too large, missing expected elements)": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177901
+      }
+    ],
+    "Register each `.md` file as an MCP resource via `@utilitynetwork_router.resource` in a `resources.py` module": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177951
+      }
+    ],
+    "Mirror the same content as Kiro steering files in `.kiro/steering/` with `inclusion: manual` front-matter": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448177998
+      }
+    ],
+    "Update `packages/psmcp-router-utilitynetwork/src/psmcp_router_utilitynetwork/__init__.py` to import new modules": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448178058
+      }
+    ],
+    "Run `psmcp router list` and verify all new tools appear under the utilitynetwork router": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448178113
+      }
+    ],
+    "Update `packages/psmcp-router-utilitynetwork/README.md`:": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448178178
+      }
+    ],
+    "Update `CHANGELOG.md` under `[Unreleased]` with new features": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448178226
+      }
+    ],
+    "Run full test suite: `uv run pytest tests/ -v`": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448178276
+      }
+    ],
+    "Run linter: `uv run ruff check .` and `uv run ruff format --check .`": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448178329
+      }
+    ],
+    "End-to-end verification: start server, verify tools are callable": [
+      {
+        "executionId": "ea9a4887-f029-48a5-9ea6-f13ae4b85428",
+        "chatSessionId": "sess_d6d2a202-c995-44ee-a130-6ea654b5df84",
+        "timestamp": 1785448178393
+      }
+    ],
+    "Create `.kiro/steering/utility-network-workflows.md`:": [
+      {
+        "executionId": "c3c261a2-3a3a-4d0b-bb37-e8a8571b61e3",
+        "chatSessionId": "sess_3f09bf05-e86c-4515-af41-4015045021b8",
+        "timestamp": 1785451222324
+      },
+      {
+        "executionId": "c3c261a2-3a3a-4d0b-bb37-e8a8571b61e3",
+        "chatSessionId": "sess_3f09bf05-e86c-4515-af41-4015045021b8",
+        "timestamp": 1785451487498
+      }
+    ]
+  }
+}

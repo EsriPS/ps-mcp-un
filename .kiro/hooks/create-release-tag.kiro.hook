@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Prepare Release PR",
+  "description": "Guides the agent through preparing a release: updates CHANGELOG.md (moves [Unreleased] entries to a versioned section with today's date), creates a release branch, commits, pushes, and opens a PR for review. Tagging happens separately after the PR is merged.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Perform the following release preparation steps:\n\n1. Read CHANGELOG.md and determine the next version number from the [Unreleased] section content (bump major for breaking changes, minor for new features, patch for fixes).\n2. Find the most recent existing version tag by running `git tag --sort=-v:refname | head -5` or by checking the latest versioned section in CHANGELOG.md. Tell the user what the current/latest version is, suggest the next version number, and ask them to confirm before proceeding.\n3. Create and switch to a new branch: `git checkout -b release/vX.Y.Z`\n4. Update CHANGELOG.md: rename [Unreleased] to [X.Y.Z] with today's date (format: YYYY-MM-DD), and add a fresh empty [Unreleased] section above it with standard subsections (Added, Changed, Fixed, Removed).\n5. Stage and commit the CHANGELOG.md change with message: \"chore: prepare release vX.Y.Z\"\n6. Push the branch: `git push -u origin release/vX.Y.Z`\n7. Open a pull request targeting `main` with title \"Release vX.Y.Z\" and a body summarizing the changelog entries.\n8. Switch back to main: `git checkout main`\n9. Tell the user: the PR is open for review. After merging, they should run the \"Tag Release\" hook (or manually run `git tag -a vX.Y.Z -m \"Release vX.Y.Z\" && git push origin vX.Y.Z`) to trigger the release workflow."
+  }
+}
