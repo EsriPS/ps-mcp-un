@@ -2028,6 +2028,8 @@ async def network_named_trace(
     starting_global_id: str,
     trace_type: str | None = None,
     terminal_id: int | None = None,
+    network_service_url: str | None = None,
+    token: str | None = None,
 ) -> dict[str, Any]:
     """Run a named (persisted) trace configuration on the utility network.
 
@@ -2043,14 +2045,18 @@ async def network_named_trace(
         starting_global_id: GlobalID (GUID) of the network feature to start from.
         trace_type: Optional trace algorithm override.
         terminal_id: Integer terminal ID of the starting feature's terminal.
+        network_service_url: Optional FeatureServer URL; falls back to UTILITY_NETWORK_URL.
+        token: Optional authentication token. Resolved via the auth context or
+            ARCGIS_TOKEN when omitted (same behavior as the other network tools).
     """
-    network_service_url = os.getenv("UTILITY_NETWORK_URL")
-    token = os.getenv("ARCGIS_TOKEN")
+    service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
+    if not service_url:
+        raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
     gis = _connect_gis(token)
     raw = await asyncio.to_thread(
         run_named_trace,
         gis,
-        network_service_url,
+        service_url,
         named_trace_name,
         starting_global_id,
         trace_type,
@@ -2058,7 +2064,7 @@ async def network_named_trace(
     )
     return _trace_response(
         "named",
-        network_service_url,
+        service_url,
         starting_global_id,
         raw,
         named_trace_name=named_trace_name,
@@ -2081,8 +2087,7 @@ async def network_list_named_traces(
     service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
     if not service_url:
         raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
-    resolved_token = token or os.getenv("ARCGIS_TOKEN")
-    gis = _connect_gis(resolved_token)
+    gis = _connect_gis(token)
 
     def _query() -> dict[str, Any]:
         un_manager = UtilityNetworkManager(_utility_network_url(service_url), gis=gis)

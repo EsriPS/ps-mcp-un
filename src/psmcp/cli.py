@@ -82,6 +82,31 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Also download third-party dependencies into the package",
     )
+    build_parser.add_argument(
+        "--no-isolation",
+        action="store_true",
+        help=(
+            "Build wheels without a PEP 517 isolated environment, reusing the "
+            "build backend (hatchling, hatch-vcs) already installed in the "
+            "current venv. Use in offline or SSL-restricted environments where "
+            "the isolated build cannot reach PyPI. Only applies to the "
+            "'python -m build' path."
+        ),
+    )
+    build_parser.add_argument(
+        "--use-uv",
+        action="store_true",
+        help=(
+            "Force wheel builds through 'uv build'. uv fetches build "
+            "dependencies through its own network stack, avoiding venvs whose "
+            "ssl module is unavailable."
+        ),
+    )
+    build_parser.add_argument(
+        "--use-pip",
+        action="store_true",
+        help="Force wheel builds through 'python -m build' even if uv is available.",
+    )
 
     return parser
 
@@ -245,12 +270,43 @@ def _router_name_to_pkg_dir(name: str, project_root: pathlib.Path) -> pathlib.Pa
     return None
 
 
-def _cmd_build(outdir: str, include_deps: bool):
-    """Build a deployment package containing wheels for enabled routers + config."""
+def _cmd_build(
+    outdir: str,
+    include_deps: bool,
+    no_isolation: bool = False,
+    use_uv: bool = False,
+    use_pip: bool = False,
+):
+    """Build a deployment package containing wheels for enabled routers + config.
+
+    Args:
+        outdir: Directory to write the deployment package into.
+        include_deps: When True, also download third-party dependency wheels
+            for offline installs.
+        no_isolation: When True and building via ``python -m build``, build
+            wheels without a PEP 517 isolated environment, reusing the build
+            backend already installed in the current environment. Useful in
+            offline or SSL-restricted environments where the isolated build
+            cannot reach PyPI to install build dependencies (hatchling,
+            hatch-vcs). Ignored when building via uv.
+        use_uv: Force wheel builds through ``uv build`` even if pip is present.
+        use_pip: Force wheel builds through ``python -m build`` even if uv is
+            available. Mutually exclusive with ``use_uv``.
+
+    By default ``uv`` is used automatically when it is on PATH: it needs neither
+    pip nor a preinstalled build backend, and it fetches build dependencies
+    through its own network stack. That sidesteps the common failure where the
+    PEP 517 *isolated* build environment created by ``python -m build`` cannot
+    load the ssl module and therefore cannot reach PyPI.
+    """
     import datetime
     import importlib.metadata
     import shutil
     import textwrap
+
+    if use_uv and use_pip:
+        print("  ERROR: --use-uv and --use-pip are mutually exclusive.")
+        sys.exit(1)
 
     project_root = _find_project_root()
 
@@ -278,24 +334,67 @@ def _cmd_build(outdir: str, include_deps: bool):
     print(f"Enabled routers: {', '.join(enabled_names)}")
     print()
 
-    # Ensure build tool is available
-    try:
-        import build as _build_check  # noqa: F401
-    except ImportError:
-        print("  Installing build tool...")
-        result = subprocess.run(
-            [sys.executable, "-m", "pip", "install", "build"],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            print(f"  ERROR: Failed to install 'build' package:\n{result.stderr}")
-            sys.exit(1)
+    # Decide which build tooling to use. Prefer `uv build`: it needs neither
+    # pip nor a preinstalled build backend, and it fetches build dependencies
+    # through uv's own network stack rather than the PEP 517 isolated build
+    # environment created by `python -m build` (whose Python may lack a working
+    # ssl module and therefore cannot reach PyPI).
+    uv_path = shutil.which("uv")
+    if use_uv and not uv_path:
+        print("  ERROR: --use-uv was requested but 'uv' is not on PATH.")
+        sys.exit(1)
+    build_with_uv = (uv_path is not None and not use_pip) or use_uv
+
+    if build_with_uv:
+        print(f"  Using uv for wheel builds: {uv_path}")
+    else:
+        # Fall back to `python -m build`. Ensure the 'build' package is present.
+        try:
+            import build as _build_check  # noqa: F401
+        except ImportError:
+            print("  Installing build tool...")
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "build"],
+                capture_output=True,
+                text=True,
+            )
+            if result.returncode != 0:
+                print(
+                    f"  ERROR: Failed to install 'build' package:\n{result.stderr}\n"
+                    "  Tip: install 'uv' (https://docs.astral.sh/uv/) so builds can "
+                    "run without pip in this venv."
+                )
+                sys.exit(1)
+
+        # For --no-isolation the backend must already be importable.
+        if no_isolation:
+            missing = []
+            for mod, pkg in (("hatchling", "hatchling>=1.25"), ("hatch_vcs", "hatch-vcs>=0.4")):
+                try:
+                    importlib.import_module(mod)
+                except ImportError:
+                    missing.append(pkg)
+            if missing:
+                print(
+                    "  ERROR: --no-isolation requires the build backend to be "
+                    "installed in the current environment.\n"
+                    f"  Missing: {', '.join(missing)}\n"
+                    f"  Install it with: {sys.executable} -m pip install "
+                    f"{' '.join(missing)}"
+                )
+                sys.exit(1)
 
     def _build_wheel(pkg_path: pathlib.Path, label: str):
         print(f"  Building {label}...")
+        if build_with_uv:
+            cmd = [uv_path, "build", "--wheel", "--out-dir", str(wheels_dir), str(pkg_path)]
+        else:
+            cmd = [sys.executable, "-m", "build", "--wheel", "--outdir", str(wheels_dir)]
+            if no_isolation:
+                cmd.append("--no-isolation")
+            cmd.append(str(pkg_path))
         result = subprocess.run(
-            [sys.executable, "-m", "build", "--wheel", "--outdir", str(wheels_dir), str(pkg_path)],
+            cmd,
             capture_output=True,
             text=True,
         )
@@ -389,25 +488,56 @@ def _cmd_build(outdir: str, include_deps: bool):
             print(f"Error: Could not build ps-mcp server wheel:\n{result.stderr}")
             sys.exit(1)
 
-    # Optionally download third-party dependencies
+    # Optionally download third-party dependencies for a fully self-contained,
+    # offline-installable package. We resolve the transitive dependency closure
+    # of every wheel we just built (server + all enabled routers), using the
+    # already-built wheels in wheels_dir as additional find-links so the local
+    # psmcp-* packages satisfy each other's inter-dependencies.
     if include_deps:
         print("  Downloading third-party dependencies...")
-        all_whls = list(wheels_dir.glob("*.whl"))
-        result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "download",
-                "--dest",
-                str(wheels_dir),
-                "--no-deps",  # we'll resolve transitively below
-            ]
-            + [str(w) for w in all_whls],
-            capture_output=True,
-            text=True,
-        )
-        # Better approach: download deps based on requirements
+        built_whls = list(wheels_dir.glob("*.whl"))
+
+        # Dependency resolution uses ``python -m pip download`` (uv has no
+        # equivalent "download wheels to a directory" command). The build
+        # interpreter is frequently a ``uv venv`` that has no importable ``pip``
+        # module, so ensure pip is present first. When uv is available we
+        # bootstrap pip into this interpreter via ``uv pip install pip`` (uv can
+        # do this without a preexisting pip); otherwise we try pip's own
+        # ``ensurepip``.
+        def _pip_available() -> bool:
+            return (
+                subprocess.run(
+                    [sys.executable, "-m", "pip", "--version"],
+                    capture_output=True,
+                    text=True,
+                ).returncode
+                == 0
+            )
+
+        if not _pip_available():
+            print("  Build interpreter has no 'pip'; bootstrapping it...")
+            if uv_path:
+                subprocess.run(
+                    [uv_path, "pip", "install", "--python", sys.executable, "pip"],
+                    capture_output=True,
+                    text=True,
+                )
+            else:
+                subprocess.run(
+                    [sys.executable, "-m", "ensurepip", "--upgrade"],
+                    capture_output=True,
+                    text=True,
+                )
+
+        if not _pip_available():
+            print(
+                "  ERROR: --include-deps requires 'pip' in the build interpreter, "
+                "and it could not be bootstrapped.\n"
+                "  Tip: install 'uv' (https://docs.astral.sh/uv/) or create the "
+                "build venv with '--seed' so pip is present."
+            )
+            sys.exit(1)
+
         result = subprocess.run(
             [
                 sys.executable,
@@ -418,14 +548,22 @@ def _cmd_build(outdir: str, include_deps: bool):
                 str(wheels_dir),
                 "--find-links",
                 str(wheels_dir),
-                "ps-mcp",
-            ],
+            ]
+            + [str(w) for w in built_whls],
             capture_output=True,
             text=True,
             cwd=str(project_root),
         )
         if result.returncode != 0:
-            print(f"  WARNING: Some dependencies may not have downloaded:\n{result.stderr}")
+            # A failed dependency download would silently produce a package that
+            # cannot be installed offline. Surface it loudly and refuse to claim
+            # the deps were bundled.
+            print(
+                "  ERROR: Failed to download all third-party dependencies. "
+                "The package will NOT be fully offline-installable.\n"
+                f"  pip stderr:\n{result.stderr}"
+            )
+            sys.exit(1)
 
     # Copy .env.sample or generate one from .env
     env_sample = project_root / ".env.sample"
@@ -484,8 +622,17 @@ def _cmd_build(outdir: str, include_deps: bool):
         fi
 
         echo "Installing wheels..."
-        "${INSTALL_DIR}/.venv/bin/pip" install --no-index --find-links "${SCRIPT_DIR}/wheels" \\
-            "${SCRIPT_DIR}"/wheels/*.whl
+        # Prefer a fully offline install (works when the package was built with
+        # --include-deps so all third-party dependencies are bundled). If that
+        # fails — typically because transitive deps like 'requests' are missing
+        # from wheels/ — fall back to resolving the remainder from PyPI.
+        WHEELS=("${SCRIPT_DIR}"/wheels/*.whl)
+        if ! "${INSTALL_DIR}/.venv/bin/pip" install --no-index \\
+            --find-links "${SCRIPT_DIR}/wheels" "${WHEELS[@]}"; then
+            echo "Offline install incomplete; retrying with PyPI for missing dependencies..."
+            "${INSTALL_DIR}/.venv/bin/pip" install \\
+                --find-links "${SCRIPT_DIR}/wheels" "${WHEELS[@]}"
+        fi
 
         # Copy config if included and not already present
         if [[ -d "${SCRIPT_DIR}/config" && ! -d "${INSTALL_DIR}/.psmcp" ]]; then
@@ -521,8 +668,18 @@ def _cmd_build(outdir: str, include_deps: bool):
             catch { py -3.13 -m venv "$InstallDir\\.venv" }
         }
         Write-Host "Installing wheels..."
-        & "$InstallDir\\.venv\\Scripts\\pip.exe" install --no-index --find-links "$ScriptDir\\wheels" `
-            (Get-ChildItem "$ScriptDir\\wheels\\*.whl" | ForEach-Object { $_.FullName })
+        $Wheels = (Get-ChildItem "$ScriptDir\\wheels\\*.whl" | ForEach-Object { $_.FullName })
+        $Pip = "$InstallDir\\.venv\\Scripts\\pip.exe"
+        # Prefer a fully offline install (works when the package was built with
+        # --include-deps so all third-party dependencies are bundled). If that
+        # fails - typically because transitive deps like 'requests' are missing
+        # from wheels\\ - fall back to resolving the remainder from PyPI.
+        & $Pip install --no-index --find-links "$ScriptDir\\wheels" $Wheels
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Offline install incomplete; retrying with PyPI for missing dependencies..."
+            & $Pip install --find-links "$ScriptDir\\wheels" $Wheels
+            if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
+        }
         if ((Test-Path "$ScriptDir\\config") -and -not (Test-Path "$InstallDir\\.psmcp")) {
             New-Item -ItemType Directory -Force -Path "$InstallDir\\.psmcp" | Out-Null
             Copy-Item "$ScriptDir\\config\\*" "$InstallDir\\.psmcp\\"
@@ -673,6 +830,9 @@ def main(argv: list[str] | None = None):
         _cmd_build(
             outdir=getattr(args, "outdir", "dist"),
             include_deps=getattr(args, "include_deps", False),
+            no_isolation=getattr(args, "no_isolation", False),
+            use_uv=getattr(args, "use_uv", False),
+            use_pip=getattr(args, "use_pip", False),
         )
         return
 

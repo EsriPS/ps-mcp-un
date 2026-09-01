@@ -8,8 +8,18 @@ if (-not (Test-Path "$InstallDir\.venv")) {
     catch { py -3.13 -m venv "$InstallDir\.venv" }
 }
 Write-Host "Installing wheels..."
-& "$InstallDir\.venv\Scripts\pip.exe" install --find-links "$ScriptDir\wheels" `
-    (Get-ChildItem "$ScriptDir\wheels\*.whl" | ForEach-Object { $_.FullName })
+$Wheels = (Get-ChildItem "$ScriptDir\wheels\*.whl" | ForEach-Object { $_.FullName })
+$Pip = "$InstallDir\.venv\Scripts\pip.exe"
+# Prefer a fully offline install (works when the package was built with
+# --include-deps so all third-party dependencies are bundled). If that fails -
+# typically because transitive deps like 'requests' are missing from wheels\ -
+# fall back to resolving the remainder from PyPI.
+& $Pip install --no-index --find-links "$ScriptDir\wheels" $Wheels
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Offline install incomplete; retrying with PyPI for missing dependencies..."
+    & $Pip install --find-links "$ScriptDir\wheels" $Wheels
+    if ($LASTEXITCODE -ne 0) { throw "pip install failed" }
+}
 if ((Test-Path "$ScriptDir\config") -and -not (Test-Path "$InstallDir\.psmcp")) {
     New-Item -ItemType Directory -Force -Path "$InstallDir\.psmcp" | Out-Null
     Copy-Item "$ScriptDir\config\*" "$InstallDir\.psmcp\"

@@ -16,8 +16,17 @@ if [[ ! -d "${INSTALL_DIR}/.venv" ]]; then
 fi
 
 echo "Installing wheels..."
-"${INSTALL_DIR}/.venv/bin/pip" install --find-links "${SCRIPT_DIR}/wheels" \
-    "${SCRIPT_DIR}"/wheels/*.whl
+# Prefer a fully offline install (works when the package was built with
+# --include-deps so all third-party dependencies are bundled). If that fails —
+# typically because transitive deps like 'requests' are missing from wheels/ —
+# fall back to resolving the remainder from PyPI.
+WHEELS=("${SCRIPT_DIR}"/wheels/*.whl)
+if ! "${INSTALL_DIR}/.venv/bin/pip" install --no-index \
+    --find-links "${SCRIPT_DIR}/wheels" "${WHEELS[@]}"; then
+    echo "Offline install incomplete; retrying with PyPI for missing dependencies..."
+    "${INSTALL_DIR}/.venv/bin/pip" install \
+        --find-links "${SCRIPT_DIR}/wheels" "${WHEELS[@]}"
+fi
 
 # Copy config if included and not already present
 if [[ -d "${SCRIPT_DIR}/config" && ! -d "${INSTALL_DIR}/.psmcp" ]]; then
