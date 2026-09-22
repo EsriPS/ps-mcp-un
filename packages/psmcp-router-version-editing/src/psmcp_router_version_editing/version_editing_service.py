@@ -124,8 +124,22 @@ def _get_version_manager(gis: GIS, service_url: str) -> VersionManager:
 def _get_un_manager(
     gis: GIS, service_url: str, version_name: str | None = None
 ) -> UtilityNetworkManager:
-    """Return the UtilityNetworkManager for the service, optionally version-scoped."""
-    return UtilityNetworkManager(_utility_network_url(service_url), version=version_name, gis=gis)
+    """Return the UtilityNetworkManager for the service, optionally version-scoped.
+
+    The arcgis ``UtilityNetworkManager(url, version=...)`` constructor requires
+    ``version`` to be a *Version object* (it reads ``version.properties.versionName``
+    and ``version._guid``), NOT a version-name string. Passing a bare name raises
+    ``'str' object has no attribute 'properties'``. So when a named version is
+    requested we resolve it to its Version object first via the VersionManager.
+    ``None`` or the default version means unversioned (``version=None``).
+    """
+    version_obj = None
+    if version_name and str(version_name).lower() not in ("default", "sde.default", "dbo.default"):
+        vm = _get_version_manager(gis, service_url)
+        version_obj = _find_version(vm, version_name)
+        if version_obj is None:
+            raise ValueError(f"Branch version '{version_name}' was not found.")
+    return UtilityNetworkManager(_utility_network_url(service_url), version=version_obj, gis=gis)
 
 
 def _find_version(version_manager: VersionManager, version_name: str) -> Any:
@@ -391,6 +405,72 @@ def _edit_failures(edit_result: Any, layer_id: Any) -> list[dict[str, Any]]:
     return failures
 
 
+def _validate_topology_versioned(
+    gis: GIS,
+    service_url: str,
+    version_name: str,
+    envelope: dict | None = None,
+) -> dict[str, Any]:
+    """Validate topology for a branch version inside a managed read session.
+
+    ``UtilityNetworkManager.validate_topology`` on a versioned network needs the
+    version's server-side read session to be active, otherwise the server returns
+    "Unable to resume a server side session". For a named (non-default) version we
+    resolve the Version object, ``start_reading`` on it, validate, then always
+    ``stop_reading``. The default/unversioned case validates directly.
+    """
+    is_named = bool(version_name) and str(version_name).lower() not in (
+        "default",
+        "sde.default",
+        "dbo.default",
+    )
+
+    def _extent(un_mgr: UtilityNetworkManager) -> dict[str, Any]:
+        # Prefer the caller's envelope, then the feature service's real extent,
+        # then the UN manager's extent, then a world fallback.
+        return (
+            envelope
+            or _service_full_extent(gis, service_url)
+            or _full_extent(un_mgr)
+        )
+
+    if not is_named:
+        # Default/unversioned: no read session required.
+        un = UtilityNetworkManager(_utility_network_url(service_url), version=None, gis=gis)
+        return un.validate_topology(envelope=_extent(un)) or {}
+
+    # Named version: build ONE Version object and use it for BOTH the read
+    # session and the UtilityNetworkManager, so they share the same session id
+    # (``version._guid``). Building the UN manager from a *different* Version
+    # object (e.g. a second VersionManager lookup) yields a mismatched session id
+    # and the server rejects validate with "Unable to resume a server side
+    # session".
+    vm = _get_version_manager(gis, service_url)
+    version = _find_version(vm, version_name)
+    if version is None:
+        return {"error": f"Branch version '{version_name}' was not found."}
+
+    un = UtilityNetworkManager(
+        _utility_network_url(service_url), version=version, gis=gis
+    )
+    extent = _extent(un)
+
+    started = False
+    try:
+        try:
+            version.start_reading()
+            started = True
+        except Exception:  # pragma: no cover - some services auto-manage reading
+            started = False
+        return un.validate_topology(envelope=extent) or {}
+    finally:
+        if started:
+            try:
+                version.stop_reading()
+            except Exception:  # pragma: no cover - best-effort session close
+                logger.warning("validate: stop_reading failed", exc_info=True)
+
+
 @version_editing_router.tool(name="network_validate_topology")
 async def network_validate_topology(
     version_name: str,
@@ -407,9 +487,7 @@ async def network_validate_topology(
 
     def _validate() -> dict[str, Any]:
         gis = _connect_gis()
-        un = _get_un_manager(gis, service_url, version_name)
-        extent = envelope or _full_extent(un)
-        return un.validate_topology(envelope=extent) or {}
+        return _validate_topology_versioned(gis, service_url, version_name, envelope)
 
     try:
         raw = await asyncio.to_thread(_validate)
@@ -427,6 +505,34 @@ async def network_validate_topology(
         "error_count": len(errors),
         "errors": errors,
     }
+
+
+def _service_full_extent(gis: GIS, service_url: str) -> dict[str, Any] | None:
+    """Return the FeatureLayerCollection's full extent (in its own SR).
+
+    The UtilityNetworkServer's ``properties.fullExtent`` is often absent, which
+    is why validate must use the feature service's real extent — a world
+    envelope in the wrong spatial reference does not overlap the dirty areas and
+    the server reports "a dirty area is not present within the ... input extent."
+    """
+    try:
+        flc = _get_feature_layer_collection(gis, service_url)
+        props = getattr(flc, "properties", {}) or {}
+        extent = _read_value(props, "fullExtent") or _read_value(props, "initialExtent")
+        if isinstance(extent, dict) and "xmin" in extent:
+            return extent
+        # PropertyMap objects: coerce to a plain dict when possible.
+        if extent is not None and hasattr(extent, "xmin"):
+            return {
+                "xmin": extent.xmin,
+                "ymin": extent.ymin,
+                "xmax": extent.xmax,
+                "ymax": extent.ymax,
+                "spatialReference": _read_value(extent, "spatialReference"),
+            }
+    except Exception:  # pragma: no cover - defensive
+        logger.warning("could not read service full extent", exc_info=True)
+    return None
 
 
 def _full_extent(un_manager: UtilityNetworkManager) -> dict[str, Any]:
@@ -487,13 +593,16 @@ async def version_reconcile_post(
     version_name: str,
     target: str = "default",
     abort_if_conflicts: bool = True,
+    with_post: bool = True,
     network_service_url: str | None = None,
 ) -> dict[str, Any]:
-    """Reconcile then post (promote) a branch version to the target version.
+    """Reconcile a branch version, and optionally post (promote) it to target.
 
     When ``abort_if_conflicts`` is true and reconcile reports conflicts, the post
-    is aborted and the version remains a branch. Returns
-    ``{reconciled, posted, conflicts}``.
+    is aborted and the version remains a branch. When ``with_post`` is false the
+    version is reconciled only (brought up to date with ``default``) and is NOT
+    promoted — useful for the Version Management Agent's reconcile-only mode.
+    Returns ``{reconciled, posted, conflicts}``.
     """
     service_url = _resolve_service_url(network_service_url)
     if target.lower() != "default":
@@ -518,6 +627,13 @@ async def version_reconcile_post(
                 version.stop_editing(save=False)
             except Exception:  # pragma: no cover
                 logger.warning("reconcile abort: stop_editing failed", exc_info=True)
+            return {"reconciled": True, "posted": False, "conflicts": conflicts}
+        if not with_post:
+            # Reconcile-only: bring the branch up to date without promoting it.
+            try:
+                version.stop_editing(save=True)
+            except Exception:  # pragma: no cover
+                logger.warning("reconcile-only: stop_editing failed", exc_info=True)
             return {"reconciled": True, "posted": False, "conflicts": conflicts}
         post_result = version.post()
         posted = _is_success(post_result)
@@ -625,6 +741,183 @@ def _has_dirty_areas(version: Any, props: dict[str, Any]) -> bool:
     if isinstance(modified, (int, float)) and isinstance(created, (int, float)):
         return modified > created
     return False
+
+
+@version_editing_router.tool(name="version_edit_summary")
+async def version_edit_summary(
+    version_name: str,
+    network_service_url: str | None = None,
+) -> dict[str, Any]:
+    """Summarize the edits pending in a branch version.
+
+    Reports how much has changed in ``version_name`` relative to the default
+    version, plus the number of dirty areas awaiting validation:
+
+    * ``features_edited`` — count of features that differ from ``default``
+      (inserts + updates + deletes) across all layers/tables, computed via the
+      version's ``differences`` operation (the ArcGIS version read-session is
+      managed for you).
+    * ``dirty_areas`` — count of features in the Utility Network *Dirty Areas*
+      layer for this version (areas edited since the last validate).
+    * ``has_dirty_areas`` — convenience boolean (``dirty_areas > 0``).
+    * ``error_count`` — number of network topology errors in the version
+      (validated read-only over the full extent). ``0`` means clean.
+    * ``has_errors`` — convenience boolean (``error_count > 0``).
+
+    Read-only: it opens a read session, reads differences, validates topology,
+    and closes without editing. Returns ``{version_name, features_edited,
+    dirty_areas, has_dirty_areas, error_count, has_errors}`` or an
+    ``{"error": ...}`` shape on failure. A count may be ``null`` if the server
+    does not support that query on this service.
+    """
+    service_url = _resolve_service_url(network_service_url)
+
+    def _summarize() -> dict[str, Any]:
+        gis = _connect_gis()
+        vm = _get_version_manager(gis, service_url)
+        version = _find_version(vm, version_name)
+        if version is None:
+            return {"__not_found__": True}
+
+        features_edited = _count_version_differences(version)
+        dirty_areas = _count_dirty_areas(gis, service_url, version_name)
+        error_count = _count_topology_errors(gis, service_url, version_name)
+        return {
+            "features_edited": features_edited,
+            "dirty_areas": dirty_areas,
+            "error_count": error_count,
+        }
+
+    try:
+        result = await asyncio.to_thread(_summarize)
+    except Exception as exc:
+        logger.exception("version_edit_summary failed for %s", version_name)
+        return {"error": f"Version edit summary failed: {exc}"}
+
+    if result.get("__not_found__"):
+        return {"error": f"Branch version '{version_name}' was not found."}
+
+    dirty_areas = result.get("dirty_areas")
+    error_count = result.get("error_count")
+    return {
+        "version_name": version_name,
+        "features_edited": result.get("features_edited"),
+        "dirty_areas": dirty_areas,
+        "has_dirty_areas": bool(dirty_areas) if dirty_areas is not None else None,
+        "error_count": error_count,
+        "has_errors": bool(error_count) if error_count is not None else None,
+    }
+
+
+def _count_topology_errors(gis: GIS, service_url: str, version_name: str) -> int | None:
+    """Count network topology errors in a version (read-only validate).
+
+    Runs ``validate_topology`` (inside the version's read session, via
+    :func:`_validate_topology_versioned`) over the full extent and counts the
+    normalized errors. Returns ``None`` when validation is unavailable on this
+    service so callers can distinguish "unknown" from "clean" (``0``).
+    """
+    try:
+        raw = _validate_topology_versioned(gis, service_url, version_name)
+        if isinstance(raw, dict) and "error" in raw:
+            return None
+        return len(_parse_topology_errors(raw))
+    except Exception:  # pragma: no cover - validate unsupported/failed
+        logger.warning("topology validate unavailable for %s", version_name, exc_info=True)
+        return None
+
+
+def _count_version_differences(version: Any) -> int | None:
+    """Count features that differ from default (inserts + updates + deletes).
+
+    Uses the version's ``differences`` (objectIds) operation inside a managed
+    read session. Returns ``None`` if differences are unavailable on this
+    service. The read session is always closed.
+    """
+    started = False
+    try:
+        try:
+            version.start_reading()
+            started = True
+        except Exception:  # pragma: no cover - some services auto-manage reading
+            started = False
+        diffs = version.differences(result_type="objectIds")
+        return _sum_difference_object_ids(diffs)
+    except Exception:  # pragma: no cover - differences unsupported/failed
+        logger.warning("version differences unavailable", exc_info=True)
+        return None
+    finally:
+        if started:
+            try:
+                version.stop_reading()
+            except Exception:  # pragma: no cover - best-effort session close
+                logger.warning("version_edit_summary: stop_reading failed", exc_info=True)
+
+
+def _sum_difference_object_ids(diffs: Any) -> int:
+    """Sum inserted/updated/deleted object ids across all layers in a diff result.
+
+    Tolerant of the shape variants ArcGIS returns: a top-level list of per-layer
+    dicts, or a dict wrapping such a list under ``differences``/``layers``. Each
+    per-layer entry carries object-id lists under ``inserts``/``updates``/
+    ``deletes`` (or the ``*ObjectIds`` variants).
+    """
+    layers: Any
+    if isinstance(diffs, dict):
+        layers = diffs.get("differences") or diffs.get("layers") or diffs.get("features") or []
+    elif isinstance(diffs, list):
+        layers = diffs
+    else:
+        layers = []
+
+    total = 0
+    for layer in layers or []:
+        if not isinstance(layer, dict):
+            continue
+        for key in (
+            "inserts",
+            "updates",
+            "deletes",
+            "insertObjectIds",
+            "updateObjectIds",
+            "deleteObjectIds",
+        ):
+            ids = layer.get(key)
+            if isinstance(ids, list):
+                total += len(ids)
+            elif isinstance(ids, int):
+                total += ids
+    return total
+
+
+def _count_dirty_areas(gis: GIS, service_url: str, version_name: str) -> int | None:
+    """Count features in the UN Dirty Areas layer scoped to ``version_name``.
+
+    Locates the layer named 'Dirty Areas' on the FeatureLayerCollection and runs
+    a count-only query with the ``gdbVersion`` set to the branch version. Returns
+    ``None`` when the layer cannot be found or the count query fails.
+    """
+    try:
+        flc = _get_feature_layer_collection(gis, service_url)
+        dirty_layer = _find_layer(flc, "Dirty Areas")
+        if dirty_layer is None:
+            return None
+        result = dirty_layer.query(
+            where="1=1",
+            return_count_only=True,
+            gdb_version=version_name,
+        )
+        if isinstance(result, int):
+            return result
+        if isinstance(result, dict):
+            count = result.get("count")
+            return int(count) if isinstance(count, (int, float)) else None
+        # arcgis may return a FeatureSet-like object exposing .count
+        count_attr = getattr(result, "count", None)
+        return int(count_attr) if isinstance(count_attr, (int, float)) else None
+    except Exception:  # pragma: no cover - service without dirty-areas layer
+        logger.warning("dirty-area count unavailable for %s", version_name, exc_info=True)
+        return None
 
 
 @version_editing_router.tool(name="quality_fix_errors")

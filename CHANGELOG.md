@@ -12,6 +12,16 @@ the form `vX.Y.Z`. `hatch-vcs` derives the package version from that tag.
 
 ### Added
 
+- **psmcp-router-version-editing**: Read-only branch-version edit summary tool
+  (`version_edit_summary`) returning `features_edited` (features differing from
+  `default`, via the version `differences` operation), `dirty_areas` (Utility
+  Network Dirty Areas layer count for the version), and `error_count` (topology
+  errors from a read-only validate), plus `has_dirty_areas` / `has_errors`
+  convenience flags. Powers the "Features edited" / "Dirty areas" / "Errors"
+  columns on the UN Governance app's Branch Versions view.
+- **psmcp-router-version-editing**: `version_reconcile_post` gained a `with_post`
+  flag — `true` (default) reconciles then posts to `default`; `false` reconciles
+  only (no promotion), supporting the Version Management Agent's reconcile-only mode.
 - **psmcp-router-utilitynetwork**: Consolidated metadata tool (`network_get_metadata`)
   replacing individual per-section tools. Accepts a `section` parameter with values:
   `domain_networks`, `asset_types`, `network_attributes`, `terminal_configurations`,
