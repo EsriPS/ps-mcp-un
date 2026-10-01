@@ -4,11 +4,11 @@ This document teaches you how to resolve ambiguous user references to specific u
 
 ---
 
-## Core Rule: NEVER Assume Asset Group or Type
+## Core Rule: NEVER Assume common asset descriptors (e.g., "transformer"). Always resolve to a specific Asset Group NS and/or Type
 
 You MUST NOT assume you know the exact asset group, asset type, or layer name for any user-provided term. Utility network configurations vary significantly between deployments. Always verify against live metadata before constructing queries.
 
-**Wrong approach:** User says "transformer" → assume asset group code 4, type code 1
+**Wrong approach:** User says "transformer" → assume asset group code 4
 **Correct approach:** User says "transformer" → call `network_get_metadata(section="asset_types")` → search results → present matches → confirm with user
 
 ---
@@ -17,6 +17,7 @@ You MUST NOT assume you know the exact asset group, asset type, or layer name fo
 
 You MUST resolve all asset group codes and asset type codes to their human-readable names before presenting results to the user. Raw numeric codes are meaningless to users.
 
+- If user prompts includes common name identifiers for assets, DO NOT ASSUME the resolution of those identifiers at the asset group level — always verify against `network_get_metadata(section="asset_types")`. ASK the user to confirm the correct asset group and / or asset type before proceeding.
 - If trace results contain `assetGroupCode` / `assetTypeCode` without corresponding names: call `network_get_metadata(section="asset_types")` to look up the names before reporting.
 - If using `network_named_trace` (which returns raw elements): cross-reference element codes against `sourceMapping` and the asset types metadata to produce readable names.
 - NEVER present output like "assetGroup 4, assetType 12" — always resolve to "Distribution Transformer, Three Phase Pad Mounted" (or whatever the names are).
