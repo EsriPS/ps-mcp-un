@@ -1,80 +1,34 @@
-# Isolation Analysis Workflow
+---
+name: utility-network-isolation-analysis
+description: Analyze an isolation trace and identify protective-device candidates from verified network categories.
+tags: [agent-runtime, utility-network, isolation]
+requires_tools: [network_initialize_session, network_device_terminals, network_list_named_traces, network_named_trace, network_trace, network_get_metadata]
+---
 
-You are identifying the isolation/protective devices that must be operated to isolate a network element, by manually orchestrating trace and filtering steps.
+# Isolation Analysis
 
-## Prerequisites
+Establish the starting GlobalID and network FeatureServer, initialize the session,
+then follow the [terminal procedure](references/trace_terminals.md) for the
+intended isolation configuration. Use returned direction recommendations; ask
+when a multi-terminal choice is ambiguous.
 
-- A starting GlobalID of the element to isolate
+Discover saved configurations with `network_list_named_traces`. Prefer a matching
+isolation configuration and call `network_named_trace` with the exact saved name.
+Preserve its saved direction. If no saved configuration fits and a basic isolation
+analysis is appropriate, use `network_trace(trace_type="isolation", ...)`.
+Only pass domain/tier names discovered from metadata to tools supporting them.
 
-## Step 1: Resolve Terminal (Upstream for Isolation)
+Use `network_get_metadata(section="categories")` and asset-type metadata to
+identify protective/isolation devices by actual category membership. Exclude the
+starting feature when reporting surrounding devices, but retain it in the audit
+of trace inputs. Do not classify every device as operable when category metadata
+is unavailable; list unclassified candidates with that limitation.
 
-Call `network_device_terminals(global_id="{GlobalID}")`.
+Report candidate GlobalIDs, resolved source/asset names, configuration, terminal,
+and warnings. Empty results may reflect connectivity, topology, start selection,
+or the saved configuration; investigate rather than inventing an isolation
+boundary. Broad results warrant checking the chosen scope and configuration.
 
-- If `terminalCount == 1`: use that terminal's `terminalId`
-- If `terminalCount > 1`: use the terminal where `recommendedFor == "upstream"`. Isolation traces start from the upstream terminal (primary / high side). If ambiguous, ask the user.
-- If `terminalCount == 0`: proceed without terminal_id
-- NEVER guess on multi-terminal devices
-
-## Step 2: Check for Named Isolation Traces (Preferred)
-
-Follow the `utility_network_named_trace_execution` prompt logic: call `network_list_named_traces()`, look for an isolation trace (e.g., "Distribution Isolation").
-
-If found and confirmed: execute via `network_named_trace` and proceed to Step 4 for filtering. Named trace results need `sourceMapping` for interpretation.
-
-If no named trace matches: proceed to Step 3.
-
-## Step 3: Run Isolation Trace
-
-Call `network_trace(starting_global_id="{GlobalID}", trace_type="isolation", terminal_id={id})`.
-
-Or with scoping:
-```
-network_trace(
-    starting_global_id="{GlobalID}",
-    trace_type="isolation",
-    terminal_id={id},
-    domain_network_name="Electric",
-    tier_name="Electric Distribution"
-)
-```
-
-Results include enriched elements with `sourceName`, `assetGroupName`, `assetTypeName`.
-
-## Step 4: Filter for Isolation/Protective Devices
-
-You need to identify which trace elements are isolation or protective devices.
-
-**Method A — Category-based (preferred):**
-1. Call `network_get_metadata(section="categories")`
-2. Search for categories whose name contains "Isolation" OR "Protective" (case-insensitive)
-3. Those categories list member asset types — each with `networkSourceId`, `assetGroupCode`, `assetTypeCode`
-4. Filter trace elements: keep ONLY those whose (`networkSourceId`, `assetGroupCode`, `assetTypeCode`) tuple matches an Isolation/Protective category member
-5. **EXCLUDE the starting feature** — remove any element whose `globalId` matches the starting GlobalID
-
-**Method B — Device source fallback:**
-If NO "Isolation" or "Protective" category exists in the metadata:
-1. Call `network_get_metadata(section="asset_types")`
-2. Identify source layers where `usageType == "esriUNFCUTDevice"` — these are device junction sources
-3. Note their `networkSourceId` (or `sourceId`) values
-4. Filter trace elements: keep those whose `networkSourceId` belongs to a device source
-5. **EXCLUDE the starting feature** (same as above)
-
-## Step 5: Present Results
-
-Lead with actionable information:
-- "To isolate this element, **N devices** must be operated:"
-- List each device:
-  - GlobalID
-  - Asset type name (e.g., "Recloser", "Disconnect Switch", "Fuse")
-  - Asset group name
-  - Source name (e.g., "ElectricDevice")
-
-Explain the isolation boundary:
-- "These devices form the isolation boundary between the faulted section and the rest of the network"
-- "Opening these devices will de-energize the section containing {starting feature}"
-
-## Troubleshooting
-
-- **Empty results (0 devices):** The feature may be directly on a controller with no intermediate protective devices. Check if the starting feature IS a controller.
-- **Too many devices:** May have started from the wrong terminal or wrong tier. Verify terminal selection and tier membership.
-- **Starting feature in results:** Always exclude it — the user wants devices AROUND it, not the feature itself.
+This is network-model analysis, not an approved switching order or confirmation
+that an asset is safe to operate. Explain the modeled boundary and defer physical
+operations to authorized utility procedures.

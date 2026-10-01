@@ -11,6 +11,7 @@ class SkillMetadata:
     description: str = ""
     tags: list[str] = field(default_factory=list)
     source_id: str = ""
+    requires_tools: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class SkillSummary:
     description: str
     tags: list[str]
     source: str
+    requires_tools: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

@@ -152,30 +152,39 @@ class TestGitHubSkillSource:
 
     @respx.mock
     async def test_load_skills_handles_404_repo(self, source):
-        """Returns empty list when repo is not found."""
+        """A missing configured repository fails visibly."""
+        respx.get("https://api.github.com/repos/test-org/skills-repo").mock(
+            return_value=httpx.Response(200, json={"default_branch": "main"})
+        )
         tree_url = "https://api.github.com/repos/test-org/skills-repo/git/trees/main"
         respx.get(tree_url).mock(return_value=httpx.Response(404))
 
-        skills = await source.load_skills()
-        assert skills == []
+        with pytest.raises(httpx.HTTPStatusError):
+            await source.load_skills()
 
     @respx.mock
     async def test_load_skills_handles_401_auth_error(self, source):
-        """Returns empty list on authentication failure."""
+        """Authentication failure is not an empty skill collection."""
+        respx.get("https://api.github.com/repos/test-org/skills-repo").mock(
+            return_value=httpx.Response(200, json={"default_branch": "main"})
+        )
         tree_url = "https://api.github.com/repos/test-org/skills-repo/git/trees/main"
         respx.get(tree_url).mock(return_value=httpx.Response(401))
 
-        skills = await source.load_skills()
-        assert skills == []
+        with pytest.raises(PermissionError):
+            await source.load_skills()
 
     @respx.mock
     async def test_load_skills_handles_403_forbidden(self, source):
-        """Returns empty list on forbidden response."""
+        """Forbidden sources fail visibly."""
+        respx.get("https://api.github.com/repos/test-org/skills-repo").mock(
+            return_value=httpx.Response(200, json={"default_branch": "main"})
+        )
         tree_url = "https://api.github.com/repos/test-org/skills-repo/git/trees/main"
         respx.get(tree_url).mock(return_value=httpx.Response(403))
 
-        skills = await source.load_skills()
-        assert skills == []
+        with pytest.raises(PermissionError):
+            await source.load_skills()
 
     @respx.mock
     async def test_load_skills_caches_results(self, source, cache):
@@ -207,8 +216,11 @@ class TestGitHubSkillSource:
         assert tree_route.call_count == 1  # No additional request
 
     @respx.mock
-    async def test_load_skills_skips_file_on_404(self, source):
-        """Individual file 404s are skipped gracefully."""
+    async def test_load_skills_rejects_missing_discovered_file(self, source):
+        """Disappearing discovered files must not produce partial success."""
+        respx.get("https://api.github.com/repos/test-org/skills-repo").mock(
+            return_value=httpx.Response(200, json={"default_branch": "main"})
+        )
         tree_url = "https://api.github.com/repos/test-org/skills-repo/git/trees/main"
         respx.get(tree_url).mock(
             return_value=httpx.Response(
@@ -231,9 +243,8 @@ class TestGitHubSkillSource:
         )
         respx.get(f"{raw_base}/missing.md").mock(return_value=httpx.Response(404))
 
-        skills = await source.load_skills()
-        assert len(skills) == 1
-        assert skills[0].metadata.name == "Exists"
+        with pytest.raises(FileNotFoundError):
+            await source.load_skills()
 
     @respx.mock
     async def test_read_file_returns_content(self, source):

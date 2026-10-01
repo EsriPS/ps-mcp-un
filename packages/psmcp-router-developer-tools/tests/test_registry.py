@@ -176,13 +176,12 @@ class TestSkillRegistry:
         assert "Skill A" in names
         assert "Skill B" in names
 
-    async def test_failing_source_does_not_crash(self):
+    async def test_failing_source_prevents_partial_success(self):
         good_source = FakeSkillSource("good:source", [_make_skill("Good Skill", ["tag"])])
         bad_source = FailingSkillSource()
         registry = SkillRegistry([good_source, bad_source])
-        results = await registry.list_skills()
-        assert len(results) == 1
-        assert results[0].name == "Good Skill"
+        with pytest.raises(RuntimeError, match="Connection failed"):
+            await registry.list_skills()
 
     async def test_empty_sources(self):
         registry = SkillRegistry([])

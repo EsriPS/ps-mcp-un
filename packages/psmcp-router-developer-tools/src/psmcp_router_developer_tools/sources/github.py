@@ -50,7 +50,7 @@ class GitHubSkillSource:
                 continue
             content = await self._fetch_file_content(path)
             if content is None:
-                continue
+                raise FileNotFoundError(f"Configured GitHub skill file disappeared: {path}")
             skill = parse_skill_file(content, path, self.source_id)
             if skill is not None:
                 skills.append(skill)
@@ -66,6 +66,12 @@ class GitHubSkillSource:
         if _is_dot_directory(relative_path):
             logger.debug("Blocked read_file for dot-directory path: %s", relative_path)
             return None
+        if (
+            relative_path.startswith("/")
+            or any(char in relative_path for char in ("\\", ":", "%"))
+            or ".." in PurePosixPath(relative_path).parts
+        ):
+            raise ValueError("Unsafe GitHub skill reference path")
         cache_key = f"file:{self.source_id}:{relative_path}"
         cached = self._cache.get(cache_key)
         if cached is not None:
@@ -87,20 +93,11 @@ class GitHubSkillSource:
         url = f"https://api.github.com/repos/{self._owner}/{self._repo}"
         headers = self._auth_headers()
         async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                resp = await client.get(url, headers=headers)
-                if resp.status_code == 200:
-                    self._ref = resp.json().get("default_branch", "main")
-                else:
-                    logger.warning(
-                        "Could not resolve default branch for %s/%s (status %d), using 'main'",
-                        self._owner,
-                        self._repo,
-                        resp.status_code,
-                    )
-                    self._ref = "main"
-            except httpx.HTTPError:
-                self._ref = "main"
+            resp = await client.get(url, headers=headers)
+            resp.raise_for_status()
+            self._ref = resp.json().get("default_branch")
+            if not isinstance(self._ref, str) or not self._ref:
+                raise ValueError(f"Missing default branch for {self.source_id}")
         self._cache.set(cache_key, self._ref)
         return self._ref
 
@@ -111,23 +108,16 @@ class GitHubSkillSource:
         headers = self._auth_headers()
         params = {"recursive": "1"}
         async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                resp = await client.get(url, headers=headers, params=params)
-                if resp.status_code in (401, 403):
-                    raise PermissionError(
-                        f"GitHub API authentication failed ({resp.status_code}) for "
-                        f"{self._owner}/{self._repo}. Ensure GITHUB_TOKEN is set and valid "
-                        f"for this repository."
-                    )
-                if resp.status_code == 404:
-                    logger.warning("GitHub repo not found: %s/%s", self._owner, self._repo)
-                    return []
-                resp.raise_for_status()
-                data = resp.json()
-                return data.get("tree", [])
-            except httpx.HTTPStatusError as e:
-                logger.error("GitHub tree fetch failed: %s", e)
-                return []
+            resp = await client.get(url, headers=headers, params=params)
+            if resp.status_code in (401, 403):
+                raise PermissionError(
+                    f"GitHub skill source authentication failed: {self.source_id}"
+                )
+            resp.raise_for_status()
+            data = resp.json()
+            if data.get("truncated") or not isinstance(data.get("tree"), list):
+                raise ValueError(f"Incomplete GitHub skill tree: {self.source_id}")
+            return data["tree"]
 
     async def _fetch_file_content(self, path: str) -> str | None:
         """Fetch raw file content from GitHub."""
@@ -135,18 +125,11 @@ class GitHubSkillSource:
         url = f"https://raw.githubusercontent.com/{self._owner}/{self._repo}/{ref}/{path}"
         headers = self._auth_headers()
         async with httpx.AsyncClient(timeout=30.0) as client:
-            try:
-                resp = await client.get(url, headers=headers)
-                if resp.status_code in (401, 403):
-                    logger.warning("GitHub auth error (%d) fetching %s", resp.status_code, path)
-                    return None
-                if resp.status_code == 404:
-                    return None
-                resp.raise_for_status()
-                return resp.text
-            except httpx.HTTPStatusError as e:
-                logger.error("GitHub file fetch failed for %s: %s", path, e)
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 404:
                 return None
+            resp.raise_for_status()
+            return resp.text
 
     def _auth_headers(self) -> dict[str, str]:
         """Build request headers with optional Bearer token auth."""

@@ -150,6 +150,8 @@ def _get_enabled_router_names(discovered: dict[str, object]) -> list[str]:
 
 def _load_and_mount_routers(mcp: FastMCP) -> list[str]:
     """Discover, filter, and mount routers. Returns list of mounted names."""
+    # Skill package publication must reflect successful mounts, not install/config state.
+    mcp._psmcp_mounted_router_packages = set()
     discovered = _discover_routers()
     if not discovered:
         logger.warning(
@@ -166,10 +168,15 @@ def _load_and_mount_routers(mcp: FastMCP) -> list[str]:
             router = ep.load()
             mcp.mount(router)
             mounted.append(name)
+            mcp._psmcp_mounted_router_packages.add(ep.value.split(":")[0].split(".")[0])
             logger.debug("Mounted router: %s", name)
         except Exception as e:
             logger.error("Failed to load/mount router %r: %s", name, e)
 
+    if "developer_tools" in mounted:
+        from psmcp_router_developer_tools.capabilities import SkillPublicationMiddleware
+
+        mcp.add_middleware(SkillPublicationMiddleware())
     return mounted
 
 

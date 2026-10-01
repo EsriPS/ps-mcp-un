@@ -21,6 +21,42 @@ uv sync --all-packages
 
 ## Environment Variables
 
+### Canonical browser instructions
+
+The `skills` package resources are the maintained source for all eight public
+workflow prompts and browser runtime instructions. Prompts strip discovery
+frontmatter and inline the same supporting Markdown used by `get_skill`.
+No frontend skill bundle is required.
+
+Install `psmcp-router-developer-tools` alongside this package (included in the root
+`all` extra), then configure:
+
+```dotenv
+ENABLED_ROUTERS=developer_tools,utilitynetwork,feature_service,location_services
+DEVTOOLS_SKILL_SOURCES=[{"type":"package","package":"psmcp_router_utilitynetwork","path":"skills"}]
+```
+
+`feature_service` enables metadata/customer/spatial workflows; `location_services`
+also enables address resolution. Documents declare `requires_tools` and are
+filtered against actual mounted tools, so unavailable workflows are not advertised.
+The transformer lookup document is published when
+`network_find_nearest_transformers` is mounted.
+The always-on `agent-system` document supplies shared utility interpretation;
+workflow documents use `agent-runtime`. Map interaction is expressed through the
+generic browser context, `zoomTo`, and `highlightFeaturesByGlobalIds` tools.
+
+Deployment-specific content can instead come from a configured local directory;
+do not layer duplicate names over this package. No source means intentional empty.
+Bad configured sources fail visibly. Package resources work in wheel/container
+installs without a checkout. The former frontend blue-cats demonstration and
+script are test fixtures in developer-tools, never in this production collection.
+
+Trace guidance uses live named-trace discovery, the real optional schema fields,
+and returned terminal metadata. It does not add a distribution-only execution gate
+or assume a junction terminal ID. Browser clients reload a coherent tools/content
+snapshot on new chat/reconnect; editing server content needs no frontend rebuild.
+See the developer-tools README for the full delivery and reference contract.
+
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `UTILITY_NETWORK_URL` | Yes | FeatureServer URL of the utility network service (e.g. `https://server/arcgis/rest/services/UN/FeatureServer`) |
@@ -56,6 +92,56 @@ Most tools accept an optional `network_service_url` parameter that overrides `UT
 |------|-------------|
 | `network_device_terminals` | Resolve terminal IDs, names, direction, tier membership, asset group/type for a feature by GlobalID. |
 | `network_query_associations` | Query connectivity, containment, and structural attachment associations for a feature. All codes resolved to names. |
+| `network_find_nearest_transformers` | Discover classified transformer point layers, retrieve every candidate in a radius, and return nearest features with WGS84 coordinates, GlobalIDs and distances. No browser map effects. |
+
+### Nearest transformers
+
+```python
+network_find_nearest_transformers(
+    latitude=34, longitude=-117, radius_meters=1609.344, limit=5,
+    network_service_url="https://your-server.example/arcgis/rest/services/Network/FeatureServer",
+)
+```
+
+The service URL defaults to `UTILITY_NETWORK_URL`; authentication uses
+`resolve_token` and requests honor `ARCGIS_VERIFY_SSL`. Latitude/longitude must be
+finite WGS84 degrees, radius must be 25–25000 meters, and limit must be an integer
+1–25. Values are rejected rather than clamped. No layer ID, SQL predicate, or
+transformer code is supplied by the caller.
+Resolved tokens are sent in the ArcGIS `X-Esri-Authorization` header, not query
+URLs that may be recorded in HTTP request logs.
+
+Classification uses discovered subtype names, or coded domains on asset/device/
+equipment type, group or class fields. Subtype-specific domain codes remain scoped
+to their subtype. Transformer labels must unambiguously identify transformer
+equipment; mixed labels such as “Transformer or Switch” fail. A layer name alone
+does not classify all its devices. Unclassified point layers and missing/ambiguous
+metadata fail the request rather than silently limiting coverage.
+
+The search queries counts and all matching object IDs across classified point
+layers. Incomplete ID responses require advertised ordered pagination; incomplete
+feature batches are split and verified against the requested IDs. All candidates
+are requested with `outSR=4326`, validated, and ranked using WGS84 ellipsoid
+geodesic distance (Vincenty inverse), then numeric layer/object-ID tie breaks.
+Distances are meters. No arbitrary first-page sample is labeled “nearest.”
+
+The result contains `featureServiceUrl`, `searchPoint`, `radiusMeters`, `count`,
+and `nearest`. Each candidate retains `layerId`, `layerUrl`, `objectId`,
+`globalId`, `distanceMeters`, `coordinates`, and original `attributes`.
+Successful empty searches return `count: 0` and `nearest: []`.
+HTTP/ArcGIS/auth errors, missing feature pages, unknown classification, missing
+GlobalIDs, and missing or non-WGS84 returned geometry fail visibly.
+
+Limitations: classification requires English transformer labels in supported
+subtype/domain metadata; it does not infer aliases such as “XFR” or localized
+labels. ArcGIS performs the spatial query/projection; unsupported distance queries
+or projections are not approximated client-side. Completeness checks detect
+missing/duplicate pages and count mismatches, but the service is not locked against
+concurrent edits. There are no switching, tracing, or map side effects. The browser
+may highlight returned GlobalIDs using its generic map tools.
+
+Deterministic validation:
+`uv run --no-sync pytest packages\psmcp-router-utilitynetwork\tests\test_transformer_lookup.py`
 
 ### Workflow Prompts
 

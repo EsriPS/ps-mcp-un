@@ -10,6 +10,7 @@ from psmcp_router_developer_tools.models import (
     SkillSummary,
 )
 from psmcp_router_developer_tools.sources.base import SampleSource, SkillSource
+from psmcp_router_developer_tools.sources.package import PackageSkillSource
 
 logger = logging.getLogger(__name__)
 
@@ -25,21 +26,48 @@ class SkillRegistry:
     def __init__(self, sources: list[SkillSource]):
         self._sources = sources
 
-    async def _load_all(self) -> tuple[list[Skill], dict[str, tuple[Skill, SkillSource]]]:
+    async def _load_all(
+        self,
+        available_tools: set[str] | None = None,
+        mounted_packages: set[str] | None = None,
+    ) -> tuple[list[Skill], dict[str, tuple[Skill, SkillSource]]]:
         """Load skills from all sources (sources handle their own caching)."""
         skills: list[Skill] = []
         by_name: dict[str, tuple[Skill, SkillSource]] = {}
         for source in self._sources:
-            try:
-                loaded = await source.load_skills()
-                for skill in loaded:
-                    skills.append(skill)
-                    by_name[skill.metadata.name.lower()] = (skill, source)
-            except Exception as e:
-                logger.error("Failed to load skills from %s: %s", source.source_id, e)
-        return skills, by_name
+            loaded = await source.load_skills()
+            for skill in loaded:
+                key = skill.metadata.name.casefold()
+                if key in by_name:
+                    raise ValueError(
+                        f"Duplicate skill name {skill.metadata.name!r} in "
+                        f"{by_name[key][1].source_id} and {source.source_id}"
+                    )
+                by_name[key] = (skill, source)
+        published = {}
+        for key, (skill, source) in by_name.items():
+            if (
+                isinstance(source, PackageSkillSource)
+                and mounted_packages is not None
+                and source.router_package is not None
+                and source.router_package not in mounted_packages
+            ):
+                continue
+            if available_tools is not None and not set(skill.metadata.requires_tools).issubset(
+                available_tools
+            ):
+                continue
+            skills.append(skill)
+            published[key] = (skill, source)
+        return skills, published
 
-    async def list_skills(self, tags: list[str] | None = None) -> list[SkillSummary]:
+    async def list_skills(
+        self,
+        tags: list[str] | None = None,
+        *,
+        available_tools: set[str] | None = None,
+        mounted_packages: set[str] | None = None,
+    ) -> list[SkillSummary]:
         """List all skills, optionally filtered by tags.
 
         Args:
@@ -49,7 +77,7 @@ class SkillRegistry:
         Returns:
             List of SkillSummary objects for matching skills.
         """
-        skills, _ = await self._load_all()
+        skills, _ = await self._load_all(available_tools, mounted_packages)
 
         filter_tags = {t.lower() for t in tags} if tags else None
         results = []
@@ -62,11 +90,18 @@ class SkillRegistry:
                     description=skill.metadata.description,
                     tags=skill.metadata.tags,
                     source=skill.metadata.source_id,
+                    requires_tools=skill.metadata.requires_tools,
                 )
             )
         return results
 
-    async def get_skill(self, name: str) -> tuple[Skill, SkillSource] | None:
+    async def get_skill(
+        self,
+        name: str,
+        *,
+        available_tools: set[str] | None = None,
+        mounted_packages: set[str] | None = None,
+    ) -> tuple[Skill, SkillSource] | None:
         """Look up a skill by name (case-insensitive).
 
         Args:
@@ -75,16 +110,21 @@ class SkillRegistry:
         Returns:
             Tuple of (Skill, SkillSource) if found, None otherwise.
         """
-        _, by_name = await self._load_all()
-        return by_name.get(name.lower())
+        _, by_name = await self._load_all(available_tools, mounted_packages)
+        return by_name.get(name.casefold())
 
-    async def get_available_names(self) -> list[str]:
+    async def get_available_names(
+        self,
+        *,
+        available_tools: set[str] | None = None,
+        mounted_packages: set[str] | None = None,
+    ) -> list[str]:
         """Return all loaded skill names.
 
         Returns:
             List of skill names as originally defined in their metadata.
         """
-        skills, _ = await self._load_all()
+        skills, _ = await self._load_all(available_tools, mounted_packages)
         return [s.metadata.name for s in skills]
 
 

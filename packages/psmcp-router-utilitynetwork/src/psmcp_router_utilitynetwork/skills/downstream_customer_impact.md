@@ -1,135 +1,46 @@
-# Downstream Customer Impact Workflow
+---
+name: utility-network-downstream-customer-impact
+description: Trace downstream from a verified network start, identify service points, and join discovered customer records without losing partial results.
+tags: [agent-runtime, utility-network, customers]
+requires_tools: [network_initialize_session, network_device_terminals, network_list_named_traces, network_named_trace, network_downstream_trace, network_get_metadata, query_feature_layer, get_service_or_layer_details, network_resolve_coded_values]
+---
 
-You are identifying all customers affected downstream of a network device by manually orchestrating the trace, filtering, and resolution steps.
+# Downstream Customer Impact
 
-## Prerequisites
+1. Establish the network FeatureServer and starting GlobalID. Call
+   `network_initialize_session()` once and follow the
+   [terminal procedure](references/trace_terminals.md) for the downstream direction.
+2. Discover `network_list_named_traces`. Prefer a matching saved downstream
+   configuration when the user wants its barriers/functions. Confirm ambiguity,
+   then call `network_named_trace` with its exact name and preserve its direction.
+   If no saved configuration fits a simple downstream request, call
+   `network_downstream_trace`. Use optional domain/tier scoping only with discovered
+   values. Do not assert that all traces require a distribution start.
+3. Inspect the returned trace data and warnings. Identify service points using
+   `network_get_metadata(section="categories")` and verified asset-type membership
+   (`networkSourceId`, `assetGroupCode`, `assetTypeCode`). Named/directional results
+   may not be enriched: resolve `sourceMapping` and metadata as needed.
+   A source name containing "service" is only a candidate, not proof of classification.
+   If classification is unknown, report unclassified trace features rather than
+   inventing a customer count.
+4. Collect distinct service-point `globalId` values. Trace elements can repeat for
+   different terminals; preserve terminal detail but deduplicate feature counts.
+5. If customer data is known, verify its layer/table and relationship fields with
+   `get_service_or_layer_details`. Query service-point attributes with
+   `query_feature_layer(endpoint_url=..., parameters=...)` using the actual GlobalID
+   field. Extract and deduplicate the verified join keys, then query the customer
+   layer/table. Validate field names from metadata and escape SQL literal quotes.
+   Complete required pages rather than treating a truncated query as all customers.
+6. Decode returned customer attributes with `network_resolve_coded_values` when
+   needed. If no verified join exists, retain service-point IDs/counts and offer
+   customer-data discovery instead of assuming a fixed CIS table or meter field.
 
-- A starting GlobalID (from user, feature query, or address resolution)
-- Optionally: customer data layer URL and join field (run Customer Data Discovery workflow first if unknown)
+Report trace element count, classified service-point count, resolved customer
+count, and function results with verified units where available. If joining fails,
+retain the successful trace and identify the customer-resolution error. A missing
+join value is not proof that the service point has no customer. Never present
+modeled impact as a confirmed outage.
 
-## Step 1: Resolve Terminal
-
-Call `network_device_terminals(global_id="{GlobalID}")`.
-
-- If `terminalCount == 1`: use that terminal's `terminalId`
-- If `terminalCount > 1`: use the terminal where `recommendedFor == "downstream"`. If ambiguous, ask the user.
-- If `terminalCount == 0`: proceed without terminal_id
-- NEVER guess on multi-terminal devices
-
-## Step 2: Check for Named Traces (Preferred)
-
-Follow the `utility_network_named_trace_execution` prompt logic: call `network_list_named_traces()`, look for a downstream trace matching the user's intent (load calculation, customer counting, etc.).
-
-If a named trace is found and confirmed by the user:
-- Execute it via `network_named_trace` and skip to Step 5
-- Named trace results include `globalFunctionResults` with computed values
-- Note: named trace elements are NOT enriched — use `sourceMapping` to identify service points
-
-If no named trace matches: proceed to Step 3.
-
-## Step 3: Run Downstream Trace
-
-Call `network_downstream_trace(starting_global_id="{GlobalID}", terminal_id={id})`.
-
-Or if you need domain/tier scoping:
-```
-network_downstream_trace(
-    starting_global_id="{GlobalID}",
-    terminal_id={id},
-    domain_network_name="Electric",
-    tier_name="Electric Distribution"
-)
-```
-
-The results include enriched elements with `sourceName`, `assetGroupName`, `assetTypeName`.
-
-## Step 4: Filter for Service Points
-
-You need to identify which trace elements are service points.
-
-**Method A — Category-based (preferred):**
-1. Call `network_get_metadata(section="categories")`
-2. Search the results for a category whose name contains "Service Point" (case-insensitive)
-3. That category lists its member asset types — each member has `networkSourceId`, `assetGroupCode`, `assetTypeCode`
-4. Filter trace elements: keep ONLY those whose (`networkSourceId`, `assetGroupCode`, `assetTypeCode`) tuple matches a Service Point category member
-
-**Method B — Source name fallback:**
-If NO "Service Point" category exists in the metadata:
-- Filter trace elements where `sourceName` contains "service" (case-insensitive)
-- This is less precise but catches most configurations
-
-**Extract GlobalIDs:**
-Collect the `globalId` from each identified service point element.
-
-## Step 5: Resolve Customer Data (Conditional)
-
-### If customer_layer_url AND customer_join_field are known:
-
-**5a. Get join field values from service points:**
-
-If `service_point_layer_url` is available:
-```
-query_feature_layer(
-    endpoint_url="{service_point_layer_url}",
-    parameters={
-        "where": "globalid IN ('{gid1}', '{gid2}', ...)",
-        "outFields": "globalid,{join_field}",
-        "returnGeometry": "false"
-    }
-)
-```
-Extract the join field values from the response features using case-insensitive field lookup (iterate attribute keys, match `join_field.lower()`). Deduplicate values while preserving order.
-
-If `service_point_layer_url` is NOT available:
-- Attempt to read the join field directly from trace element attributes (case-insensitive key match)
-- Trace elements often lack full attributes, so this is a fallback
-
-**5b. Handle empty join values:**
-If no join values are found, report:
-- Service point count
-- Note: "No join field values found on service point features for field '{join_field}'"
-- The trace results are still valid
-
-**5c. Query customer layer:**
-```
-query_feature_layer(
-    endpoint_url="{customer_layer_url}",
-    parameters={
-        "where": "{join_field} IN ('{val1}', '{val2}', ...)",
-        "outFields": "*",
-        "returnGeometry": "false"
-    }
-)
-```
-
-**5d. Resolve coded values on customer records:**
-```
-network_resolve_coded_values(features=[...customer attributes...], layer_url="{customer_layer_url}")
-```
-
-**5e. Present results:** customer count, total load (if available), list of affected customers.
-
-### If customer config is NOT known:
-
-- Report the service point GlobalIDs and count
-- Suggest: "Customer data source not configured. To resolve customers, provide customer_layer_url (the URL of the customer data layer/table) and customer_join_field (the field linking service points to customers, e.g., 'meter_id'). Use network_get_metadata or search_portal to discover the customer data source."
-- The trace results are still valuable without customer data
-
-### Error handling:
-
-If any step in the customer resolution fails (bad URL, field doesn't exist, HTTP error):
-- Still report the trace results, service point count, and service point GlobalIDs
-- Include a note about the failure: "Customer resolution failed: {error}. Trace results and service points are still available."
-- Do NOT let customer resolution failure discard the trace work
-
-## Step 6: Present Results
-
-Lead with the answer:
-- "X service points are downstream, serving Y customers with Z kW total load"
-- Or if no customer data: "X service points found downstream of {device}. Customer data not yet resolved."
-
-Include:
-- Total element count from the trace
-- Service point count
-- Customer count and load (if resolved)
-- Phase breakdown (if available from named trace functions)
+For visual presentation in the browser, pass all desired GlobalIDs to
+`highlightFeaturesByGlobalIds` and inspect unmatched IDs. Preserve the chosen
+service and start for subsequent upstream requests.

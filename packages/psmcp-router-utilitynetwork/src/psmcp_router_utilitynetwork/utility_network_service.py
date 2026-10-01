@@ -22,8 +22,11 @@ from arcgis.features._utility import UtilityNetworkManager
 from arcgis.gis import GIS
 from dotenv import load_dotenv
 from fastmcp import FastMCP
+from pydantic import StrictFloat, StrictInt
 
 from psmcp.core.auth import resolve_token
+
+from .transformer_lookup import find_nearest_transformers
 
 load_dotenv()
 
@@ -1045,12 +1048,33 @@ _SECTION_PARSERS: dict[str, Callable[..., dict[str, Any]]] = {
 
 
 def _read_skill(filename: str) -> str:
-    """Read a skill file from the skills directory."""
-    skill_path = _SKILLS_DIR / filename
-    if not skill_path.exists():
-        logger.error("Skill file not found: %s", skill_path)
-        raise FileNotFoundError(f"Skill file not found: {skill_path}")
-    return skill_path.read_text(encoding="utf-8")
+    """Read canonical prompt text and inline its contained Markdown references."""
+    root = _SKILLS_DIR.resolve()
+    seen: set[Path] = set()
+
+    def read(path: Path, depth: int = 0) -> str:
+        path = path.resolve()
+        if not path.is_relative_to(root):
+            raise ValueError("Prompt reference escapes the skills directory")
+        if path in seen:
+            return ""
+        if depth > 8:
+            raise ValueError("Prompt reference depth exceeds 8")
+        seen.add(path)
+        content = path.read_text(encoding="utf-8")
+        content = re.sub(r"^---\s*\n.*?\n---\s*\n", "", content, count=1, flags=re.DOTALL)
+        sections = [content]
+        for label, reference in re.findall(r"\[([^\]]*)\]\(([^)]+\.md)\)", content):
+            if reference.startswith("https://"):
+                continue
+            if any(char in reference for char in ("\\", ":", "%")):
+                raise ValueError("Unsafe prompt reference")
+            referenced = read(path.parent / reference, depth + 1)
+            if referenced:
+                sections.append(f"\n\n## Reference: {label}\n\n{referenced}")
+        return "".join(sections)
+
+    return read(root / filename)
 
 
 # ---------------------------------------------------------------------------
@@ -1853,6 +1877,38 @@ def _query_associations_sync(
 # ---------------------------------------------------------------------------
 # MCP Tools
 # ---------------------------------------------------------------------------
+
+
+@utilitynetwork_router.tool(name="network_find_nearest_transformers")
+async def network_find_nearest_transformers(
+    latitude: StrictFloat,
+    longitude: StrictFloat,
+    radius_meters: StrictFloat = 1609.344,
+    limit: StrictInt = 5,
+    network_service_url: str | None = None,
+    token: str | None = None,
+) -> dict[str, Any]:
+    """Find nearest classified transformers within a WGS84 point/radius search.
+
+    Call network_initialize_session first. Latitude/longitude are finite WGS84
+    degrees; radius_meters is 25..25000 and limit is an integer 1..25.
+    Discovers point layers and transformer subtype/domain codes from the configured
+    FeatureServer, retrieves every candidate, and ranks by WGS84 geodesic distance
+    with stable layer/object-ID ties. Returns identities, attributes and coordinates,
+    not map effects. Unknown classification, incomplete queries, service errors or
+    unsupported returned geometry fail explicitly; an empty search is valid.
+    """
+    return await find_nearest_transformers(
+        latitude,
+        longitude,
+        radius_meters,
+        limit,
+        network_service_url
+        if network_service_url is not None
+        else os.getenv("UTILITY_NETWORK_URL"),
+        resolve_token(token),
+        VERIFY_SSL,
+    )
 
 
 @utilitynetwork_router.tool(name="network_initialize_session")

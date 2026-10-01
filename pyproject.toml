@@ -34,6 +34,7 @@ dev = [
 # Convenience: install all official routers at once.
 all = [
     "psmcp-router-arcgis",
+    "psmcp-router-developer-tools",
     "psmcp-router-feature-service",
     "psmcp-router-geoprocessing",
     "psmcp-router-location-services",
@@ -129,4 +130,3 @@ line-ending = "lf"
 dev = [
     "hypothesis>=6.100",
 ]
-

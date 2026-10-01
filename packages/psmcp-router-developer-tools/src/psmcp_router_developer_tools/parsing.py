@@ -53,14 +53,41 @@ def parse_skill_file(content: str, file_path: str, source_id: str) -> Skill | No
         source_id: Identifier of the source this file came from.
 
     Returns:
-        Skill object, or None if the file is invalid (missing name, bad YAML).
+        Skill object, or None for ordinary Markdown/non-agent files without names.
+
+    Raises:
+        ValueError: Frontmatter is malformed or agent metadata violates the contract.
     """
     fm, body = parse_front_matter(content)
 
     if not fm:
+        if content.startswith("---"):
+            raise ValueError(f"Invalid skill front matter: {file_path}")
         logger.warning("Skipping %s: no valid front matter", file_path)
         return None
 
+    tags = _merge_tags(fm)
+    agent_tags = {"agent-runtime", "agent-system"} & set(tags)
+    requires_tools = fm.get("requires_tools", [])
+    if not isinstance(requires_tools, list) or any(
+        not isinstance(tool, str) or not tool.strip() for tool in requires_tools
+    ):
+        raise ValueError(f"Invalid requires_tools in {file_path}: expected string array")
+    if agent_tags:
+        if len(agent_tags) > 1:
+            raise ValueError(f"Skill cannot be both agent-runtime and agent-system: {file_path}")
+        if (
+            not isinstance(fm.get("name"), str)
+            or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", fm["name"])
+            or len(fm["name"]) > 64
+        ):
+            raise ValueError(f"Invalid agent skill name: {file_path}")
+        if (
+            not isinstance(fm.get("description"), str)
+            or not fm["description"].strip()
+            or len(fm["description"]) > 1024
+        ):
+            raise ValueError(f"Invalid agent skill description: {file_path}")
     raw_name = fm.get("name", "")
     name = str(raw_name).strip() if raw_name is not None else ""
     if not name:
@@ -69,14 +96,12 @@ def parse_skill_file(content: str, file_path: str, source_id: str) -> Skill | No
 
     description = fm.get("description", "")
 
-    # Merge tags from top-level and metadata.tags, deduplicate, normalize
-    tags = _merge_tags(fm)
-
     metadata = SkillMetadata(
         name=name,
         description=description,
         tags=tags,
         source_id=source_id,
+        requires_tools=requires_tools,
     )
     return Skill(metadata=metadata, content=body, file_path=file_path)
 

@@ -1386,6 +1386,7 @@ dependencies = [
 [package.optional-dependencies]
 all = [
     { name = "psmcp-router-arcgis" },
+    { name = "psmcp-router-developer-tools" },
     { name = "psmcp-router-feature-service" },
     { name = "psmcp-router-geoprocessing" },
     { name = "psmcp-router-location-services" },
@@ -1413,6 +1414,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.27,<1" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.5" },
     { name = "psmcp-router-arcgis", marker = "extra == 'all'", editable = "packages/psmcp-router-arcgis" },
+    { name = "psmcp-router-developer-tools", marker = "extra == 'all'", editable = "packages/psmcp-router-developer-tools" },
     { name = "psmcp-router-feature-service", marker = "extra == 'all'", editable = "packages/psmcp-router-feature-service" },
     { name = "psmcp-router-geoprocessing", marker = "extra == 'all'", editable = "packages/psmcp-router-geoprocessing" },
     { name = "psmcp-router-location-services", marker = "extra == 'all'", editable = "packages/psmcp-router-location-services" },

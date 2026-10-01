@@ -57,10 +57,10 @@ class TestLocalSkillSource:
         names = {s.metadata.name for s in skills}
         assert "Nested Skill" in names
 
-    async def test_load_skills_returns_empty_for_nonexistent_path(self):
+    async def test_load_skills_raises_for_nonexistent_path(self):
         source = LocalSkillSource("/nonexistent/path")
-        skills = await source.load_skills()
-        assert skills == []
+        with pytest.raises(FileNotFoundError):
+            await source.load_skills()
 
     async def test_load_skills_skips_invalid_files(self, tmp_path):
         # File without front matter

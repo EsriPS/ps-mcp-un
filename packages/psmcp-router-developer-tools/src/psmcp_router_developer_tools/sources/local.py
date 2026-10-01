@@ -15,7 +15,7 @@ class LocalSkillSource:
     """Loads skills from a local filesystem directory."""
 
     def __init__(self, path: str, source_id: str | None = None):
-        self._path = Path(path)
+        self._path = Path(path).resolve()
         self._source_id = source_id or f"local:{path}"
 
     @property
@@ -29,23 +29,20 @@ class LocalSkillSource:
     def _load_skills_sync(self) -> list[Skill]:
         """Synchronous skill loading (run in a thread to avoid blocking the event loop)."""
         if not self._path.is_dir():
-            logger.warning("Skill source path does not exist: %s", self._path)
-            return []
+            raise FileNotFoundError(f"Skill source directory does not exist: {self._path}")
 
         skills = []
-        for md_file in self._path.rglob("*.md"):
+        for md_file in sorted(self._path.rglob("*.md")):
             # Skip dot-directories
             relative = md_file.relative_to(self._path)
             if any(part.startswith(".") for part in relative.parts[:-1]):
                 continue
 
-            try:
-                content = md_file.read_text(encoding="utf-8")
-            except OSError as e:
-                logger.warning("Failed to read %s: %s", md_file, e)
-                continue
+            if not md_file.resolve().is_relative_to(self._path):
+                raise ValueError(f"Skill file escapes source directory: {relative}")
+            content = md_file.read_text(encoding="utf-8")
 
-            skill = parse_skill_file(content, str(relative), self.source_id)
+            skill = parse_skill_file(content, relative.as_posix(), self.source_id)
             if skill is not None:
                 skills.append(skill)
 
@@ -57,18 +54,30 @@ class LocalSkillSource:
         Dot-directory paths are excluded for security (consistent with discovery).
         """
         # Block access to dot-directories for consistency with load_skills filtering
+        if (
+            "\\" in relative_path
+            or ":" in relative_path
+            or "%" in relative_path
+            or Path(relative_path).is_absolute()
+        ):
+            raise ValueError("Unsafe skill reference path")
         parts = Path(relative_path).parts
         if any(part.startswith(".") for part in parts[:-1]):
             logger.debug("Blocked read_file for dot-directory path: %s", relative_path)
             return None
-        target = self._path / relative_path
+        target = (self._path / relative_path).resolve()
+        if not target.is_relative_to(self._path):
+            raise ValueError("Skill reference escapes source directory")
         if not target.is_file():
             return None
-        try:
-            return target.read_text(encoding="utf-8")
-        except OSError as e:
-            logger.warning("Failed to read referenced file %s: %s", target, e)
-            return None
+        return await asyncio.to_thread(target.read_text, encoding="utf-8")
+
+    def validate_reference(self, skill_file_path: str, reference_path: str) -> None:
+        """Reject symlinks that escape the individual skill's virtual directory."""
+        directory = (self._path / skill_file_path).parent.resolve()
+        target = (self._path / reference_path).resolve()
+        if not target.is_relative_to(directory):
+            raise ValueError("Skill reference escapes its document directory")
 
 
 class LocalSampleSource:

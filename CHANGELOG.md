@@ -12,6 +12,18 @@ the form `vX.Y.Z`. `hatch-vcs` derives the package version from that tag.
 
 ### Added
 
+- Canonical server-hosted utility workflow and always-on agent instructions,
+  including generic browser map guidance; eight existing prompts read the same
+  documents. Transformer instructions are published when their server tool is mounted.
+- `network_find_nearest_transformers`: metadata-driven transformer classification,
+  complete ID/batch retrieval, WGS84 geodesic ranking, stable identities and
+  explicit incomplete-query errors. Browser highlighting remains client-owned.
+- Developer-tools package resource sources, actual-mounted-tool dependency
+  filtering, and bounded transitive Markdown reference delivery. Invalid configured
+  sources, ambiguous duplicates, missing references and unsupported runtime assets
+  now fail visibly. The root `all` extra includes developer-tools.
+- Migration contract tests and test-only blue-cats fixtures with supporting assets.
+
 - **psmcp-router-utilitynetwork**: Consolidated metadata tool (`network_get_metadata`)
   replacing individual per-section tools. Accepts a `section` parameter with values:
   `domain_networks`, `asset_types`, `network_attributes`, `terminal_configurations`,
@@ -130,4 +142,3 @@ This project uses [SemVer](https://semver.org). For PS-MCP specifically:
 
 Routers in this repository pin `ps-mcp>=X.Y.Z,<X+1` so a major version bump
 loudly breaks downstream installs that haven't been updated.
-

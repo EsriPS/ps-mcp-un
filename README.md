@@ -63,6 +63,31 @@ import from `psmcp.core.*` — there is no separate `psmcp-core` package.
 
 ## Router management
 
+### Server-owned browser skills
+
+The `all` extra includes `psmcp-router-developer-tools`, whose existing
+`list_skills`/`get_skill` tools publish runtime instructions. For packaged utility
+content, install utility-network and configure:
+
+```dotenv
+ENABLED_ROUTERS=developer_tools,utilitynetwork,feature_service,location_services
+DEVTOOLS_SKILL_SOURCES=[{"type":"package","package":"psmcp_router_utilitynetwork","path":"skills"}]
+```
+
+Select a client-specific local collection instead when needed; no source is an
+intentional empty collection. Do not publish the repository's development `.skills`.
+Invalid configured sources and duplicate names fail visibly. Workflow dependencies
+are checked against actual mounted tools, not merely installed packages.
+Eight utility prompts read the same canonical documents; always-on policy is
+tagged `agent-system` and workflows are tagged `agent-runtime`.
+
+Install the compatible server first, then the runtime-loading frontend. The
+frontend captures one tools/instructions/files snapshot and refreshes on new
+chat/reconnect or endpoint/authentication changes, without a frontend rebuild.
+Keep a compatible list/get provider available when rolling back a server used by
+the new frontend. See the developer-tools and utility-network package READMEs for
+packaging, reference restrictions, and source configuration.
+
 Routers register themselves via the `psmcp.routers` Python entry point. The
 server discovers them automatically.
 

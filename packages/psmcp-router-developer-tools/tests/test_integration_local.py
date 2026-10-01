@@ -60,12 +60,6 @@ class TestLocalSkillSourceIntegration:
             encoding="utf-8",
         )
 
-        # Invalid: malformed YAML
-        (tmp_path / "bad-yaml.md").write_text(
-            "---\nname: [unclosed bracket\n---\nContent after bad yaml.\n",
-            encoding="utf-8",
-        )
-
         return tmp_path
 
     async def test_loads_valid_skills_and_skips_invalid(self, skills_dir):
@@ -142,8 +136,8 @@ class TestLocalSkillSourceIntegration:
         assert "category" in deep.file_path
         assert "subcategory" in deep.file_path
 
-    async def test_invalid_front_matter_files_skipped_gracefully(self, tmp_path):
-        """Files with invalid YAML front matter are skipped without raising."""
+    async def test_invalid_front_matter_files_fail_visibly(self, tmp_path):
+        """Invalid configured skill YAML must not produce a partial collection."""
         (tmp_path / "bad.md").write_text(
             "---\nname: [invalid: yaml: here\n---\nBody content.\n",
             encoding="utf-8",
@@ -155,10 +149,8 @@ class TestLocalSkillSourceIntegration:
         )
 
         source = LocalSkillSource(str(tmp_path))
-        skills = await source.load_skills()
-
-        assert len(skills) == 1
-        assert skills[0].metadata.name == "Good Skill"
+        with pytest.raises(ValueError, match="Invalid skill front matter"):
+            await source.load_skills()
 
 
 class TestLocalSkillSourceDotDirectoryExclusion:

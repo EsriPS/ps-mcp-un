@@ -88,24 +88,20 @@ def test_load_skill_sources_valid_json_array(monkeypatch):
     assert result == sources
 
 
-def test_load_skill_sources_invalid_json_returns_empty(monkeypatch, caplog):
+def test_load_skill_sources_invalid_json_raises(monkeypatch):
     monkeypatch.setenv("DEVTOOLS_SKILL_SOURCES", "not valid json {{{")
     from psmcp_router_developer_tools.config import load_skill_sources
 
-    with caplog.at_level(logging.ERROR):
-        result = load_skill_sources()
-    assert result == []
-    assert "Invalid JSON in DEVTOOLS_SKILL_SOURCES" in caplog.text
+    with pytest.raises(ValueError, match="Invalid JSON in DEVTOOLS_SKILL_SOURCES"):
+        load_skill_sources()
 
 
-def test_load_skill_sources_non_array_returns_empty(monkeypatch, caplog):
+def test_load_skill_sources_non_array_raises(monkeypatch):
     monkeypatch.setenv("DEVTOOLS_SKILL_SOURCES", json.dumps({"type": "github"}))
     from psmcp_router_developer_tools.config import load_skill_sources
 
-    with caplog.at_level(logging.ERROR):
-        result = load_skill_sources()
-    assert result == []
-    assert "DEVTOOLS_SKILL_SOURCES must be a JSON array" in caplog.text
+    with pytest.raises(ValueError, match="must be a JSON array"):
+        load_skill_sources()
 
 
 # ── load_sample_sources ──────────────────────────────────────────────────────

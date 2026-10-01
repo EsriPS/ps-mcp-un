@@ -2,23 +2,22 @@
 
 import logging
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 
 from psmcp_router_developer_tools.cache import TTLCache
+from psmcp_router_developer_tools.capabilities import publication_root
 from psmcp_router_developer_tools.config import (
     CACHE_TTL_MINUTES,
     load_sample_sources,
     load_skill_sources,
 )
 from psmcp_router_developer_tools.models import SampleSetConfig
-from psmcp_router_developer_tools.parsing import (
-    find_relative_references,
-    resolve_reference_path,
-)
+from psmcp_router_developer_tools.references import resolve_references
 from psmcp_router_developer_tools.registry import SampleRegistry, SkillRegistry
 from psmcp_router_developer_tools.sources.base import SampleSource
 from psmcp_router_developer_tools.sources.github import GitHubSampleSource, GitHubSkillSource
 from psmcp_router_developer_tools.sources.local import LocalSampleSource, LocalSkillSource
+from psmcp_router_developer_tools.sources.package import PackageSkillSource
 
 logger = logging.getLogger(__name__)
 
@@ -38,18 +37,12 @@ def _build_skill_registry() -> SkillRegistry:
         src_type = cfg.get("type", "")
         if src_type == "github":
             url = cfg.get("url")
-            if not url:
-                logger.warning("GitHub skill source missing 'url', skipping: %s", cfg)
-                continue
             sources.append(GitHubSkillSource(url=url, cache=_cache))
         elif src_type == "local":
             path = cfg.get("path")
-            if not path:
-                logger.warning("Local skill source missing 'path', skipping: %s", cfg)
-                continue
             sources.append(LocalSkillSource(path=path))
-        else:
-            logger.warning("Unknown skill source type: %s", src_type)
+        elif src_type == "package":
+            sources.append(PackageSkillSource(package=cfg["package"], path=cfg["path"]))
     return SkillRegistry(sources)
 
 
@@ -111,8 +104,17 @@ def _get_sample_registry() -> SampleRegistry:
 # --- Tools ---
 
 
+async def _publication_context(ctx: Context | None) -> dict:
+    """Use the root request server, not configured or merely installed routers."""
+    root = publication_root.get() or (ctx.fastmcp if ctx is not None else developer_tools_router)
+    return {
+        "available_tools": {tool.name for tool in await root.list_tools()},
+        "mounted_packages": getattr(root, "_psmcp_mounted_router_packages", set()),
+    }
+
+
 @developer_tools_router.tool
-async def list_skills(tags: list[str] | None = None) -> dict:
+async def list_skills(tags: list[str] | None = None, ctx: Context | None = None) -> dict:
     """List available developer skill documents with optional tag filtering.
 
     Skills are curated markdown guidance documents with metadata. Use this tool
@@ -127,7 +129,7 @@ async def list_skills(tags: list[str] | None = None) -> dict:
         for each matching skill.
     """
     registry = _get_skill_registry()
-    skills = await registry.list_skills(tags=tags)
+    skills = await registry.list_skills(tags=tags, **await _publication_context(ctx))
     return {
         "skills": [
             {
@@ -135,6 +137,7 @@ async def list_skills(tags: list[str] | None = None) -> dict:
                 "description": s.description,
                 "tags": s.tags,
                 "source": s.source,
+                **({"requires_tools": s.requires_tools} if s.requires_tools else {}),
             }
             for s in skills
         ],
@@ -143,24 +146,25 @@ async def list_skills(tags: list[str] | None = None) -> dict:
 
 
 @developer_tools_router.tool
-async def get_skill(name: str) -> dict:
+async def get_skill(name: str, ctx: Context | None = None) -> dict:
     """Retrieve the full content of a specific skill by name.
 
-    Returns the complete markdown content including resolved references
-    to other .md files linked within the skill.
+    Returns the Markdown body without frontmatter and transitive Markdown
+    references through eight edges. Required runtime reference failures raise
+    an MCP tool error; executable and binary assets are not delivered.
 
     Args:
         name: The name of the skill to retrieve (case-insensitive).
 
     Returns:
-        Dict with skill metadata and full content, including any resolved
-        references appended as additional sections.
+        Dict with skill metadata, content, and a separate references array.
     """
     registry = _get_skill_registry()
-    result = await registry.get_skill(name)
+    publication = await _publication_context(ctx)
+    result = await registry.get_skill(name, **publication)
 
     if result is None:
-        available = await registry.get_available_names()
+        available = await registry.get_available_names(**publication)
         return {
             "error": f"Skill '{name}' not found.",
             "available_skills": available,
@@ -168,24 +172,18 @@ async def get_skill(name: str) -> dict:
 
     skill, source = result
 
-    # Resolve relative .md references
-    references = find_relative_references(skill.content)
-    resolved_refs: list[dict] = []
-    for label, ref_path in references:
-        resolved_path = resolve_reference_path(skill.file_path, ref_path)
-        ref_content = await source.read_file(resolved_path)
-        if ref_content is not None:
-            resolved_refs.append({"label": label, "path": ref_path, "content": ref_content})
-        else:
-            resolved_refs.append(
-                {"label": label, "path": ref_path, "error": "Could not resolve reference"}
-            )
+    resolved_refs = await resolve_references(skill, source)
 
     return {
         "name": skill.metadata.name,
         "description": skill.metadata.description,
         "tags": skill.metadata.tags,
         "source": skill.metadata.source_id,
+        **(
+            {"requires_tools": skill.metadata.requires_tools}
+            if skill.metadata.requires_tools
+            else {}
+        ),
         "content": skill.content,
         "references": resolved_refs,
     }

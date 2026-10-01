@@ -1,6 +1,6 @@
 """Tests for the developer-tools router MCP tool functions."""
 
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import ANY, AsyncMock, Mock, patch
 
 import pytest
 from psmcp_router_developer_tools.models import (
@@ -71,7 +71,9 @@ class TestListSkills:
         assert len(result["skills"]) == 2
         assert result["skills"][0]["name"] == "Skill A"
         assert result["skills"][1]["name"] == "Skill B"
-        mock_registry.list_skills.assert_called_once_with(tags=None)
+        mock_registry.list_skills.assert_called_once_with(
+            tags=None, available_tools=ANY, mounted_packages=set()
+        )
 
     async def test_passes_tag_filter(self):
         """list_skills passes tags to the registry."""
@@ -87,7 +89,9 @@ class TestListSkills:
             result = await list_skills(tags=["python"])
 
         assert result["total"] == 1
-        mock_registry.list_skills.assert_called_once_with(tags=["python"])
+        mock_registry.list_skills.assert_called_once_with(
+            tags=["python"], available_tools=ANY, mounted_packages=set()
+        )
 
     async def test_returns_empty_list(self):
         """list_skills returns empty results gracefully."""
