@@ -1,0 +1,214 @@
+# PS-MCP eval prompts.
+#
+# Each entry defines one test with a single canonical answer so correctness is
+# objective. Fill in the `expects.answer` values with your known-good ground
+# truth for the target network before running the suite.
+#
+# Schema per prompt:
+#   id:        stable identifier (used in result files)
+#   prompt:    the user message given to the unharnessed agent
+#   expects:
+#     answer:      the one correct final answer (string or number). The scorer
+#                  normalizes whitespace/case and can match a number exactly.
+#     match:       how to compare — "exact" | "contains" | "numeric" (default exact)
+#     tools:       tool names the agent SHOULD call (order not enforced)
+#     discovery:   resource URIs / prompt names / skills the agent SHOULD pull
+#                  before acting. Used to measure the "discovery" criterion.
+#   notes:     free-form reminder for whoever maintains the answer key
+test utility network service: https://util-ent01.esri.com/server/rest/services/mcp_une/FeatureServer
+prompts:
+  - id: nearest_transformer_customer_count
+    prompt: >
+      Locate the nearest distribution transformer to Naperville Fire Station #9
+      and provide its assetID, then trace to get downstream service locations and list connected customer records by customerID.
+    expects:
+      # Two facts: (1) the transformer's assetID, (2) the connected customer count.
+      answer: "AssetID: MV-XFR-911, Connected customers: customerID 15026 (Residential)"          # e.g. "assetID <X>, <#> (Type)"
+      match: contains
+      tools:
+        - network_initialize_session
+        - find_address_candidates
+        - get_service_or_layer_details
+        - network_get_metadata
+        - query_feature_layer
+        - network_list_named_traces
+        - network_device_terminals
+        - network_named_trace
+        - query_customer_data
+      discovery: []
+    notes: >
+      End-to-end, multi-router test:
+        1. Geocode "Naperville Fire Station #9" (location_services find_address_candidates)
+        2. resolve utility network asset groups and types to the appropriate asset group and type codes
+        4. Spatially find the nearest Distribution Transformer feature (feature_service query)
+        5. Report its assetID
+        6. list named traces to see which are available
+        7. use downstream service location trace
+        9. query_customer_data to count connected customers
+      
+      Confirm the correct assetID and customer count from a known-good run,
+      then set expects.answer.
+
+  - id: mv_conductor_length_rmt002
+    prompt: What is the length of medium voltage conductor on RMT002?
+    expects:
+      answer: "using shape_Length:130491 feet, using Measured Length:150063.6 feet"          # e.g. "<length> <units>"
+      match: contains
+      tools:
+        - network_initialize_session
+        - network_get_metadata
+        - query_feature_layer
+      discovery: []
+    notes: >
+      Need to resolve subnetworkname field for query parameter
+      Medium Voltage conductor is subset of Medium voltage asset groups from the electric line feature class
+      Would need to resolve descriptions to get correct query.
+      summing MV conductor length. Confirm the correct length + units.
+
+
+  - id: mv_transformer_padmount_single_phase_rmt002
+    prompt: >
+      How many medium voltage transformers on RMT002 are pad mounted single
+      phase?
+    expects:
+      answer: "217"          # a count
+      match: numeric
+      tools:
+        - network_initialize_session
+        - network_get_metadata
+        - query_feature_layer
+      discovery: []
+    notes: >
+      Filter on the RMT002 MV transformers (asset type = pad-mounted, phase =
+      single). Self-contained so it runs correctly in an isolated session.
+
+  - id: mv_transformer_customers_each_rmt002
+    prompt: >
+      For the first 10 pad mounted single phase medium voltage transformers on RMT002,
+      sorted by objectid, list count by customer type of customers that depend on each one?
+    expects:
+      answer: >-
+        MV-XFR-336: Residential 4, Bulk 2 (total 6);
+        MV-XFR-344: Residential 4, Commercial 1, Municipal 1 (total 6);
+        MV-XFR-401: Residential 2, Critical 1 (total 3);
+        MV-XFR-419: Residential 2, Commercial 1, Bulk 1 (total 4);
+        MV-XFR-434: Residential 1 (total 1);
+        MV-XFR-470: Residential 5, Bulk 1, Municipal 1 (total 7);
+        MV-XFR-476: Residential 5, Commercial 1, Municipal 2 (total 8);
+        MV-XFR-514: Residential 2, Critical 1 (total 3);
+        MV-XFR-523: Residential 4 (total 4);
+        MV-XFR-532: Residential 11, Commercial 1 (total 12)
+      match: contains
+      tools:
+        - network_initialize_session
+        - network_get_metadata
+        - query_feature_layer
+        - network_list_named_traces
+        - network_device_terminals
+        - network_named_trace
+      discovery: []
+    notes: >
+      Per-transformer downstream customer counts for the pad-mounted single-phase
+      MV transformers on RMT002. Self-contained so it runs correctly in an
+      isolated session.
+
+  - id: status_mv_xfr_330
+    prompt: What is the operating status of MV-XFR-330?
+    expects:
+      answer: "NULL"          # e.g. the lifecycle/operational status value
+      match: contains
+      tools:
+        - network_initialize_session
+        - get_service_or_layer_details
+        - query_feature_layer
+      discovery: []
+    notes: >
+      Single-asset attribute lookup by asset ID MV-XFR-330. Coded status value
+      likely needs resolving via network_resolve_coded_values. Confirm the
+      human-readable status.
+
+  - id: isolation_device_mv_xfr_911
+    prompt: >
+      Which device isolates MV-XFR-911 from the rest of the network? Run an
+      isolation trace from the transformer and report the isolating device's
+      assetID.
+    expects:
+      # Isolating protective device returned by the distribution isolation trace.
+      answer: "MV-FS-582"          # the isolating medium voltage fuse
+      match: contains
+      tools:
+        - network_initialize_session
+        - network_get_metadata
+        - query_feature_layer
+        - network_list_named_traces
+        - network_device_terminals
+        - network_named_trace
+      discovery: []
+    notes: >
+      VERIFIED against the live service (mcp_une).
+      Workflow:
+        1. Resolve MV-XFR-911 -> GlobalID {0DA57A32-2D45-4158-85EA-8D42716FDA4B}
+           on ElectricDevice (layer 3), asset group 38 (Medium Voltage Transformer),
+           asset type 789 (Pad Mounted Single Phase).
+        2. Pick the upstream/isolation terminal (terminalId 7 = 2wXFR:Primary).
+        3. Run the named "Distribution Isolation Trace" (traceType isolation).
+        4. The isolating device is a Medium Voltage Fuse (asset group 29, type 564):
+           assetID MV-FS-582 (GlobalID {A9A27199-ED59-4514-88D8-3566A23D36B0}).
+      The isolation trace also returns the containing assembly and structure
+      junction; the isolating protective device itself is MV-FS-582.
+
+  - id: disambiguate_transformer_asset_types
+    prompt: >
+      I want to query transformers on this network. What transformer asset
+      groups and types exist, and what are their codes?
+    expects:
+      # The agent should discover the MV Transformer asset group and its pad-mounted
+      # single-phase type via metadata rather than assuming codes.
+      answer: "Medium Voltage Transformer"          # expect group name + that it enumerates types with codes
+      match: contains
+      tools:
+        - network_initialize_session
+        - network_get_metadata
+      discovery: []
+    notes: >
+      PARTIALLY VERIFIED - tests the "NEVER assume asset group/type" guidance.
+      The agent should call network_get_metadata(section="asset_types",
+      domain_network="Electric") and enumerate the transformer asset groups:
+        - High Voltage Transformer / Bank / Winding
+        - Medium Voltage Transformer (asset group code 38) / Bank / Winding
+        - Low Voltage Transformer / Bank / Winding
+      For "Medium Voltage Transformer" (code 38) the asset types include:
+        781 Grounding Transformer - MV->MV, 782 Mobile Single Phase - MV->LV,
+        783 Mobile Three Phase - MV->LV, 784 Network - MV->LV,
+        785 Overhead Single Phase - MV->LV, 786 Station - MV->LV,
+        788 Overhead Three Phase - MV->LV, 789 Pad Mounted Single Phase - MV->LV,
+        792 Pad Mounted Three Phase - MV->LV, 793/794 Submersible, etc.
+      Refine answer key once the expected level of detail is decided. Candidate
+      strict key: "Medium Voltage Transformer (asset group 38); Pad Mounted
+      Single Phase = asset type 789".
+
+  - id: associations_attachments
+    prompt: >
+      for RTM002 feeder, which poles are supporting medium voltage overhead conductors that were installed over 30 years ago? 
+    expects:
+
+      answer: "no associations"          # UNVERIFIED placeholder - see notes
+      match: contains
+      tools:
+        - network_initialize_session
+        - query_feature_layer
+        - network_query_associations
+      discovery: []
+    notes: >
+      UNVERIFIED ANSWER - REFINE BEFORE RELYING ON IT.
+      network_query_associations({0DA57A32-2D45-4158-85EA-8D42716FDA4B}) returned
+      associationCount 0 during the test run. The same was true for the downstream
+      service point, an Electric Assembly (fuse bank), and sample structure
+      junctions - even some with ASSOCIATIONSTATUS flags set. Either:
+        (a) this UN deployment does not expose association records through the
+            associations endpoint (then set answer to assert "no associations"
+            and keep this as a graceful-empty-result test), or
+        (b) locate a feature that genuinely has containment/structural attachment
+            associations (e.g., a pole with attached equipment) and set the answer
+            to that feature's resolved association summary.
+      Pick (a) or (b) when refining.
