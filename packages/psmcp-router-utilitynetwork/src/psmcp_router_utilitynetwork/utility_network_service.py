@@ -1276,7 +1276,6 @@ def _feature_tier_info(
     return info
 
 
-
 def _parse_configured_tiers_for_feature(
     domain: dict[str, Any],
     attrs: dict[str, Any],
@@ -1358,9 +1357,7 @@ def _resolve_feature_tier(
     This resolves the feature's *actual* subnetwork membership — the subnetworks
     recorded in its ``SUBNETWORKNAME`` value, each mapped to a tier via the
     subnetwork layer's ``TIERNAME`` — not its *configured* (potential) tier
-    associations. A device is typically a valid object in several tier
-    definitions (configured validity), but is an actual member of only the
-    subnetwork(s) it participates in.
+    associations.
 
     In a partitioned domain network a device is an actual member of a single
     subnetwork, so this resolves to one tier. The exception is a barrier object
@@ -2065,14 +2062,12 @@ def _validate_start_in_tier(
         )
         if target_domain is None:
             return None
-        rank_by_name: dict[str, int] = {}
-        name_by_rank: dict[int, str] = {}
-        for tier in target_domain.get("tiers", []) or []:
-            rank, name = tier.get("rank"), tier.get("name")
-            if rank is None or name is None:
-                continue
-            rank_by_name[str(name).strip().lower()] = rank
-            name_by_rank[rank] = name
+        # Rank of the tier the named trace targets (validation-specific).
+        rank_by_name = {
+            str(t.get("name")).strip().lower(): t.get("rank")
+            for t in target_domain.get("tiers", []) or []
+            if t.get("rank") is not None and t.get("name") is not None
+        }
         target_rank = rank_by_name.get(str(tier_name).strip().lower())
         if target_rank is None:
             return None
@@ -2082,31 +2077,18 @@ def _validate_start_in_tier(
         )
         if not attrs:
             return None
-        subnetwork_names = _split_subnetwork_names(attrs.get("subnetworkname"))
-        if not subnetwork_names:
-            return None
 
-        subnetwork_layer_id = target_domain.get("subnetworkLayerId")
-        if subnetwork_layer_id is None or subnetwork_layer_id < 0:
-            return None
-        layers_by_id = {int(lyr.properties.id): lyr for lyr in flc.layers}
-        subnet_layer = layers_by_id.get(int(subnetwork_layer_id))
-        if subnet_layer is None:
-            return None
-        rows = subnet_layer.query(
-            where=f"SUBNETWORKNAME IN ({_quote(subnetwork_names)})",
-            out_fields="SUBNETWORKNAME,TIERNAME",
-            return_geometry=False,
-        ).features
-        feature_ranks = {
-            r.attributes.get("TIERNAME") for r in rows if r.attributes.get("TIERNAME") is not None
-        }
+        # Resolve the feature's actual subnetwork membership -> tier ranks/names
+        # via the shared helper (same logic the trace path uses).
+        info = _feature_tier_info(flc, target_domain, attrs)
+        feature_ranks = info["featureTierRanks"]
         if not feature_ranks:
             return None
         if target_rank in feature_ranks:
             return None
 
-        feature_tier_names = sorted(name_by_rank.get(r, f"rank {r}") for r in feature_ranks)
+        subnetwork_names = info["subnetworkNames"]
+        feature_tier_names = info["featureTierNames"]
         asset_id = attrs.get("assetid") or global_id
         return {
             "status": INVALID_START_POINT,
@@ -2408,7 +2390,7 @@ async def network_downstream_trace(
 
     The from-tier is derived from the start feature's subnetwork membership, and
     that tier's subnetwork trace definition (condition barriers + inclusion flags)
-    is applied automatically so the trace stops at subnetwork controllers.
+    is applied automatically so the trace stops at barriers and subnetwork controllers.
 
     - For junction features, supply terminal_id to identify the correct terminal.
     - For edge features, supply percent_along (0.0-1.0) to locate the starting
