@@ -7,6 +7,7 @@ prompts.py, and resources.py.
 """
 
 import asyncio
+import copy
 import logging
 import os
 import re
@@ -95,6 +96,21 @@ NEEDS_TERMINAL_SELECTION = "needs_terminal_selection"
 INVALID_START_POINT = "invalid_start_point"
 
 _NO_STARTING_POINTS = -2147208614  # extendedCode for "No starting points found."
+
+# extendedCode returned when a trace spans multiple subnetwork controllers with
+# different subnetwork names — i.e. the trace was not scoped to a single tier's
+# subnetwork definition (its condition barriers were not applied).
+_MULTIPLE_SUBNETWORK_CONTROLLERS = -2147208616
+
+# tierDefinition values (a DOMAIN-NETWORK property, not per-tier). This governs
+# whether a feature can participate in more than one subnetwork/tier:
+#   Partitioned  => a feature belongs to at most one subnetwork, so its
+#                   membership pins exactly one candidate tier.
+#   Hierarchical => a feature may participate in multiple subnetworks/tiers, so
+#                   the feature constrains the tier to a set that may need
+#                   disambiguation.
+_TIER_DEFINITION_PARTITIONED = "esriTDPartitioned"
+_TIER_DEFINITION_HIERARCHICAL = "esriTDHierarchical"
 
 _SKILLS_DIR = Path(__file__).resolve().parent / "skills"
 _CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -247,6 +263,70 @@ def _un_data_element(flc: FeatureLayerCollection) -> dict[str, Any]:
     if not data_element:
         raise ValueError("Utility network data element is empty.")
     return data_element
+
+
+def _parse_tier_definition(
+    data_element: dict[str, Any],
+    domain_network_name: str,
+    tier_name: str,
+) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """Locate a tier (and its domain network) within the data element.
+
+    Args:
+        data_element: The utility network data element (schema).
+        domain_network_name: Domain network to match (case-insensitive).
+        tier_name: Tier name to match (case-insensitive).
+
+    Returns:
+        A ``(domain_network, tier)`` tuple, or ``None`` if no matching tier is
+        found. The domain network carries ``tierDefinition`` (partitioned vs
+        hierarchical); the tier carries ``updateSubnetworkTraceConfiguration``.
+    """
+    target_dn = domain_network_name.strip().lower()
+    target_tier = tier_name.strip().lower()
+    for dn in data_element.get("domainNetworks", []) or []:
+        if str(dn.get("domainNetworkName", "")).strip().lower() != target_dn:
+            continue
+        for tier in dn.get("tiers", []) or []:
+            if str(tier.get("name", "")).strip().lower() == target_tier:
+                return dn, tier
+    return None
+
+
+def _is_hierarchical(domain_network: dict[str, Any]) -> bool:
+    """Return True if the domain network uses hierarchical tier definitions.
+
+    Hierarchical domain networks allow a feature to participate in multiple
+    subnetworks (and therefore multiple tiers); partitioned domain networks
+    constrain a feature to at most one subnetwork (except for barrier features netween subnetworks). This is read from
+    the domain-network ``tierDefinition`` property.
+    """
+    return str(domain_network.get("tierDefinition", "")).strip() == _TIER_DEFINITION_HIERARCHICAL
+
+
+def _parse_tier_trace_configuration(tier: dict[str, Any]) -> dict[str, Any]:
+    """Return the subnetwork trace configuration for a tier.
+
+    The tier's ``updateSubnetworkTraceConfiguration`` is the server-defined
+    subnetwork definition. It already contains the ``conditionBarriers`` that
+    stop a directional trace at subnetwork controllers, plus the inclusion flags
+    (``includeContainers``/``includeContent``/``includeStructures``/
+    ``includeBarriers``) and propagators. Supplying it as the trace
+    ``configuration`` reproduces the behavior of a tier-scoped trace in Pro.
+
+    Args:
+        tier: A tier object from the data element (see ``_parse_tier_definition``).
+
+    Returns:
+        A copy of the tier's subnetwork trace configuration, or an empty dict if
+        the tier has none.
+    """
+    config = tier.get("updateSubnetworkTraceConfiguration")
+    if not isinstance(config, dict):
+        return {}
+    # Deep copy so callers can mutate the returned config (e.g. overriding
+    # fields) without corrupting the cached data element's tier definition.
+    return copy.deepcopy(config)
 
 
 # ---------------------------------------------------------------------------
@@ -762,11 +842,14 @@ def _parse_domain_networks(data_element: dict[str, Any], **_filters: Any) -> dic
         for tier in dn.get("tiers", []):
             tiers.append(
                 {
-                    "tierId": tier.get("tierId"),
+                    # The data element uses "tierID" / "tierTopology" (not
+                    # "tierId" / "topologyType"). "topologyType" is kept as an
+                    # alias in the output for backward compatibility.
+                    "tierId": tier.get("tierID"),
                     "name": tier.get("name", ""),
                     "rank": tier.get("rank"),
                     "tierGroupName": tier.get("tierGroupName", ""),
-                    "topologyType": tier.get("topologyType", ""),
+                    "topologyType": tier.get("tierTopology", ""),
                     "subnetworkFieldName": tier.get("subnetworkFieldName", ""),
                 }
             )
@@ -1193,6 +1276,271 @@ def _feature_tier_info(
     return info
 
 
+def _parse_configured_tiers_for_feature(
+    domain: dict[str, Any],
+    attrs: dict[str, Any],
+) -> list[str]:
+    """Return the tiers a feature is a *configured* (potential) valid object in.
+
+    This is distinct from actual subnetwork membership: it reports every tier
+    whose valid-object lists include the feature's asset group/type, regardless
+    of whether the feature currently belongs to a built subnetwork. It is used
+    as a fallback for inferring a from-tier when subnetwork membership is absent
+    (e.g. the subnetwork has not been built), since a trace may still reach a
+    controller from the feature.
+
+    A feature is typically valid in several tiers, so this often returns more
+    than one tier name.
+
+    Args:
+        domain: A domain network object from the data element.
+        attrs: Lower-cased feature attributes (must include ``assetgroup`` and
+            ``assettype``).
+
+    Returns:
+        Tier names (in the domain's tier order) the feature is configured-valid
+        in. Empty if the asset group/type is not valid in any tier.
+    """
+    # Per-tier lists of asset types that are valid objects of a tier. A trace start
+    # point may be any valid object, so all of
+    # these are consulted when inferring a feature's configured (potential) tiers.
+    _TIER_VALID_OBJECT_KEYS = (
+        "validDevices",
+        "validLines",
+        "validJunctions",
+        "validJunctionObjects",
+        "validJunctionObjectSubnetworkControllers",
+        "validEdgeObjects",
+        "validSubnetworkControllers",
+    )
+    group_code = attrs.get("assetgroup")
+    type_code = attrs.get("assettype")
+    if group_code is None or type_code is None:
+        return []
+
+    tier_names: list[str] = []
+    for tier in domain.get("tiers", []) or []:
+        for key in _TIER_VALID_OBJECT_KEYS:
+            matched = False
+            for grp in tier.get(key, []) or []:
+                if grp.get("assetGroupCode") != group_code:
+                    continue
+                type_codes = {at.get("assetTypeCode") for at in grp.get("assetTypes", []) or []}
+                if type_code in type_codes:
+                    matched = True
+                    break
+            if matched:
+                name = tier.get("name")
+                if name and name not in tier_names:
+                    tier_names.append(name)
+                break
+    return tier_names
+
+
+# Status markers for feature->tier resolution.
+TIER_RESOLVED = "tier_resolved"
+TIER_AMBIGUOUS = "tier_ambiguous"
+TIER_NO_MEMBERSHIP = "tier_no_membership"
+
+
+def _resolve_feature_tier(
+    gis: GIS,
+    feature_service_url: str,
+    global_id: str,
+    data_element: dict[str, Any],
+    *,
+    domain_network_name: str | None = None,
+    tier_name: str | None = None,
+) -> dict[str, Any]:
+    """Determine the from-tier for a trace from the start feature's membership.
+
+    This resolves the feature's *actual* subnetwork membership — the subnetworks
+    recorded in its ``SUBNETWORKNAME`` value, each mapped to a tier via the
+    subnetwork layer's ``TIERNAME`` — not its *configured* (potential) tier
+    associations.
+
+    In a partitioned domain network a device is an actual member of a single
+    subnetwork, so this resolves to one tier. The exception is a barrier object
+    sitting between two subnetworks, which can be a member of more than one; that
+    yields multiple tiers and is reported as ambiguous. A hierarchical domain
+    network can likewise produce multiple memberships. In every case the decision
+    is driven by resolved membership, independent of the partitioned/hierarchical
+    designation.
+
+    Args:
+        gis: Authenticated GIS connection.
+        feature_service_url: FeatureServer URL for the utility network.
+        global_id: GlobalID of the start feature.
+        data_element: The utility network data element (schema).
+        domain_network_name: Optional hint/override. When supplied it is used to
+            locate the feature and is also an acceptable disambiguator.
+        tier_name: Optional caller-supplied tier. When the feature resolves to
+            more than one tier, it must name one of them; it is validated here.
+
+    Resolution cascade:
+        1. Actual subnetwork membership (authoritative). One member tier → resolve.
+        2. Fallback when there is no membership (e.g. the subnetwork was not
+           built but a controller may still be traceable): the tiers the feature
+           is a *configured* valid object in. One configured tier → resolve
+           best-effort, flagged ``resolvedBy="configured"``.
+        3. Still more than one tier: validate a caller-supplied ``tier_name``
+           against the set, otherwise return ``TIER_AMBIGUOUS`` for the caller to
+           choose.
+
+    Returns:
+        A dict with ``status`` set to one of ``TIER_RESOLVED``,
+        ``TIER_AMBIGUOUS`` or ``TIER_NO_MEMBERSHIP``. ``TIER_RESOLVED`` carries
+        ``domainNetworkName``, ``tierName``, ``subnetworkNames`` and
+        ``resolvedBy`` (``"membership"`` or ``"configured"``). ``TIER_AMBIGUOUS``
+        carries ``memberTiers`` (when resolved from membership) or
+        ``configuredTiers`` (fallback), plus ``resolvedBy``.
+    """
+    flc = FeatureLayerCollection(feature_service_url.rstrip("/"), gis=gis)
+    domain, attrs = _locate_feature_attrs(flc, data_element, global_id, domain_network_name)
+    if domain is None or not attrs:
+        return {
+            "status": TIER_NO_MEMBERSHIP,
+            "startingGlobalId": global_id,
+            "message": (
+                f"Could not locate network feature {global_id}"
+                + (f" in domain network '{domain_network_name}'." if domain_network_name else ".")
+            ),
+        }
+
+    dn_name = domain.get("domainNetworkName", "")
+    info = _feature_tier_info(flc, domain, attrs)
+    # Tiers of the subnetworks the feature is an ACTUAL member of (resolved from
+    # SUBNETWORKNAME -> TIERNAME), not the tiers it is merely configured as a
+    # valid object in.
+    member_tiers: list[str] = info.get("featureTierNames", []) or []
+    subnetwork_names: list[str] = info.get("subnetworkNames", []) or []
+
+    # --- Step 1: actual subnetwork membership (authoritative) ---------------
+    if member_tiers:
+        return _resolve_from_candidates(
+            global_id,
+            dn_name,
+            member_tiers,
+            tier_name,
+            resolved_by="membership",
+            subnetwork_names=subnetwork_names,
+            ambiguous_key="memberTiers",
+            ambiguous_message=(
+                f"Start feature {global_id} is an actual member of subnetworks "
+                f"across multiple tiers ({member_tiers}) in domain network "
+                f"'{dn_name}' — e.g. a barrier object between subnetworks. "
+                "Specify tier_name to choose one."
+            ),
+            reject_message_fmt=(
+                "Requested tier '{requested}' is not a tier the start feature is "
+                f"an actual subnetwork member of ({member_tiers}). Choose one of "
+                "those tiers."
+            ),
+        )
+
+    # --- Step 2/3: fallback to configured (potential) tier validity ---------
+    # No subnetwork membership — the subnetwork may not have been built. A trace
+    # can still succeed if a controller is reachable, so infer the from-tier
+    # from the tiers the feature is a configured valid object in.
+    configured_tiers = _parse_configured_tiers_for_feature(domain, attrs)
+    if not configured_tiers:
+        return {
+            "status": TIER_NO_MEMBERSHIP,
+            "startingGlobalId": global_id,
+            "domainNetworkName": dn_name,
+            "message": (
+                f"Start feature {global_id} is not an actual member of any "
+                f"subnetwork in domain network '{dn_name}', and its asset type is "
+                "not a configured valid object of any tier, so no from-tier can be "
+                "determined. The feature may be unenergized, unassigned, or not "
+                "part of this domain network."
+            ),
+        }
+
+    return _resolve_from_candidates(
+        global_id,
+        dn_name,
+        configured_tiers,
+        tier_name,
+        resolved_by="configured",
+        subnetwork_names=subnetwork_names,
+        ambiguous_key="configuredTiers",
+        ambiguous_message=(
+            f"Start feature {global_id} is not a member of a built subnetwork in "
+            f"domain network '{dn_name}', so the from-tier was inferred from "
+            f"configured validity, which matches multiple tiers ({configured_tiers}). "
+            "Specify tier_name to choose one."
+        ),
+        reject_message_fmt=(
+            "Requested tier '{requested}' is not a tier the start feature is a "
+            f"configured valid object of ({configured_tiers}). Choose one of those "
+            "tiers."
+        ),
+    )
+
+
+def _resolve_from_candidates(
+    global_id: str,
+    dn_name: str,
+    candidates: list[str],
+    tier_name: str | None,
+    *,
+    resolved_by: str,
+    subnetwork_names: list[str],
+    ambiguous_key: str,
+    ambiguous_message: str,
+    reject_message_fmt: str,
+) -> dict[str, Any]:
+    """Resolve a from-tier from a candidate list, applying caller tier_name.
+
+    Shared by the membership and configured-validity branches of
+    ``_resolve_feature_tier``. ``resolved_by`` records which branch resolved the
+    tier (``"membership"`` or ``"configured"``). ``ambiguous_key`` is the key
+    name used to report the candidate list on an ambiguous result.
+    """
+    if tier_name:
+        match = next(
+            (t for t in candidates if t.strip().lower() == tier_name.strip().lower()),
+            None,
+        )
+        if match is None:
+            return {
+                "status": TIER_AMBIGUOUS,
+                "startingGlobalId": global_id,
+                "domainNetworkName": dn_name,
+                ambiguous_key: candidates,
+                "subnetworkNames": subnetwork_names,
+                "resolvedBy": resolved_by,
+                "message": reject_message_fmt.format(requested=tier_name),
+            }
+        return {
+            "status": TIER_RESOLVED,
+            "domainNetworkName": dn_name,
+            "tierName": match,
+            "subnetworkNames": subnetwork_names,
+            "resolvedBy": resolved_by,
+        }
+
+    if len(candidates) == 1:
+        return {
+            "status": TIER_RESOLVED,
+            "domainNetworkName": dn_name,
+            "tierName": candidates[0],
+            "subnetworkNames": subnetwork_names,
+            "resolvedBy": resolved_by,
+        }
+
+    return {
+        "status": TIER_AMBIGUOUS,
+        "startingGlobalId": global_id,
+        "domainNetworkName": dn_name,
+        ambiguous_key: candidates,
+        "subnetworkNames": subnetwork_names,
+        "resolvedBy": resolved_by,
+        "message": ambiguous_message,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Core trace and named trace execution
 # ---------------------------------------------------------------------------
@@ -1237,22 +1585,82 @@ def run_trace(
     terminal_id: int | None = None,
     percent_along: float | None = None,
     feature_service_url: str | None = None,
+    token: str | None = None,
 ) -> dict[str, Any]:
-    """Execute a direct upstream or downstream trace on the utility network."""
+    """Execute a direct upstream or downstream trace on the utility network.
+
+    The from-tier is derived from the start feature's subnetwork membership (the
+    feature constrains which tier a trace can run on). The resolved tier's
+    subnetwork trace definition — which carries the ``conditionBarriers`` that
+    stop the trace at subnetwork controllers — is applied as the trace
+    configuration. ``domain_network_name`` and ``tier_name`` act as optional
+    hints/disambiguators, not as the sole source of truth.
+
+    If the start feature cannot be resolved to a single tier, a structured dict
+    with a ``status`` of ``TIER_AMBIGUOUS`` or ``TIER_NO_MEMBERSHIP`` is returned
+    so the caller can prompt for a tier (or report the feature is not a
+    subnetwork member) instead of issuing an invalid trace.
+    """
     un_manager = UtilityNetworkManager(_utility_network_url(network_service_url), gis=gis)
+    service_url = feature_service_url or network_service_url
 
-    if terminal_id is not None or percent_along is not None:
-        locations = _starting_point(global_id, terminal_id=terminal_id, percent_along=percent_along)
-    elif feature_service_url:
-        locations = _starting_point(global_id)
-    else:
-        locations = _starting_point(global_id)
+    locations = _starting_point(global_id, terminal_id=terminal_id, percent_along=percent_along)
 
-    configuration: dict[str, Any] = {}
-    if domain_network_name:
-        configuration["domainNetworkName"] = domain_network_name
-    if tier_name:
-        configuration["tierName"] = tier_name
+    # Derive the from-tier from the start feature and build the trace
+    # configuration from that tier's subnetwork definition. This is best-effort:
+    # if the data element or tier definition cannot be read, fall back to the
+    # caller-supplied domain/tier so the trace still runs (and any engine error
+    # is surfaced downstream).
+    configuration: dict[str, Any] | None = None
+    resolved_by: str | None = None
+    resolved_tier: str | None = None
+    try:
+        # Read the shared, cached data element directly (same source the
+        # metadata parsers use) rather than re-querying through an FLC here.
+        data_element = _get_data_element(service_url, token)
+        resolution = _resolve_feature_tier(
+            gis,
+            service_url,
+            global_id,
+            data_element,
+            domain_network_name=domain_network_name,
+            tier_name=tier_name,
+        )
+        if resolution.get("status") != TIER_RESOLVED:
+            # Ambiguous or no membership — hand the structured result back so the
+            # tool can ask the user to pick a tier rather than tracing blindly.
+            return resolution
+
+        resolved_domain = resolution["domainNetworkName"]
+        resolved_tier = resolution["tierName"]
+        resolved_by = resolution.get("resolvedBy")
+        found = _parse_tier_definition(data_element, resolved_domain, resolved_tier)
+        if found is not None:
+            _, tier = found
+            configuration = _parse_tier_trace_configuration(tier)
+            logger.info(
+                "Resolved from-tier '%s' (domain '%s', by %s) for %s; applying its "
+                "subnetwork trace definition (%d condition barriers).",
+                resolved_tier,
+                resolved_domain,
+                resolved_by,
+                global_id,
+                len(configuration.get("conditionBarriers", [])),
+            )
+    except Exception as exc:
+        logger.warning(
+            "Could not resolve tier/subnetwork definition for %s (%s); "
+            "falling back to caller-supplied domain/tier.",
+            global_id,
+            exc,
+        )
+
+    if configuration is None:
+        configuration = {}
+        if domain_network_name:
+            configuration["domainNetworkName"] = domain_network_name
+        if tier_name:
+            configuration["tierName"] = tier_name
 
     logger.info("Running %s trace from %s", trace_type, global_id)
 
@@ -1273,6 +1681,11 @@ def run_trace(
         )
         _validate_topology(un_manager, feature_service_url, gis)
         raw = _do_trace()
+
+    # Record how the from-tier was chosen so the response can flag a best-effort
+    # (configured-validity) trace that ran without actual subnetwork membership.
+    if isinstance(raw, dict) and resolved_by is not None:
+        raw["_tierResolution"] = {"resolvedBy": resolved_by, "tierName": resolved_tier}
 
     return raw
 
@@ -1649,14 +2062,12 @@ def _validate_start_in_tier(
         )
         if target_domain is None:
             return None
-        rank_by_name: dict[str, int] = {}
-        name_by_rank: dict[int, str] = {}
-        for tier in target_domain.get("tiers", []) or []:
-            rank, name = tier.get("rank"), tier.get("name")
-            if rank is None or name is None:
-                continue
-            rank_by_name[str(name).strip().lower()] = rank
-            name_by_rank[rank] = name
+        # Rank of the tier the named trace targets (validation-specific).
+        rank_by_name = {
+            str(t.get("name")).strip().lower(): t.get("rank")
+            for t in target_domain.get("tiers", []) or []
+            if t.get("rank") is not None and t.get("name") is not None
+        }
         target_rank = rank_by_name.get(str(tier_name).strip().lower())
         if target_rank is None:
             return None
@@ -1666,31 +2077,18 @@ def _validate_start_in_tier(
         )
         if not attrs:
             return None
-        subnetwork_names = _split_subnetwork_names(attrs.get("subnetworkname"))
-        if not subnetwork_names:
-            return None
 
-        subnetwork_layer_id = target_domain.get("subnetworkLayerId")
-        if subnetwork_layer_id is None or subnetwork_layer_id < 0:
-            return None
-        layers_by_id = {int(lyr.properties.id): lyr for lyr in flc.layers}
-        subnet_layer = layers_by_id.get(int(subnetwork_layer_id))
-        if subnet_layer is None:
-            return None
-        rows = subnet_layer.query(
-            where=f"SUBNETWORKNAME IN ({_quote(subnetwork_names)})",
-            out_fields="SUBNETWORKNAME,TIERNAME",
-            return_geometry=False,
-        ).features
-        feature_ranks = {
-            r.attributes.get("TIERNAME") for r in rows if r.attributes.get("TIERNAME") is not None
-        }
+        # Resolve the feature's actual subnetwork membership -> tier ranks/names
+        # via the shared helper (same logic the trace path uses).
+        info = _feature_tier_info(flc, target_domain, attrs)
+        feature_ranks = info["featureTierRanks"]
         if not feature_ranks:
             return None
         if target_rank in feature_ranks:
             return None
 
-        feature_tier_names = sorted(name_by_rank.get(r, f"rank {r}") for r in feature_ranks)
+        subnetwork_names = info["subnetworkNames"]
+        feature_tier_names = info["featureTierNames"]
         asset_id = attrs.get("assetid") or global_id
         return {
             "status": INVALID_START_POINT,
@@ -1728,7 +2126,31 @@ def _trace_response(
     *,
     named_trace_name: str | None = None,
 ) -> dict[str, Any]:
-    if raw.get("success") is False:
+    # A feature->tier resolution result (ambiguous / no-membership) is passed
+    # through unchanged so the caller can act on it instead of treating it as a
+    # trace result.
+    if raw.get("status") in {TIER_AMBIGUOUS, TIER_NO_MEMBERSHIP}:
+        return raw
+
+    # Pop the internal tier-resolution marker (added by run_trace) before the
+    # raw dict is used as a trace-results fallback below.
+    tier_resolution = raw.pop("_tierResolution", None) if isinstance(raw, dict) else None
+
+    error = raw.get("error") or {}
+    if raw.get("success") is False or error:
+        # A trace that spans multiple subnetwork controllers means the from-tier
+        # was not scoped to a single subnetwork definition. Surface an actionable
+        # message rather than the raw engine error code.
+        if error.get("extendedCode") == _MULTIPLE_SUBNETWORK_CONTROLLERS:
+            raise RuntimeError(
+                "Trace spans multiple subnetworks, so it could not be scoped to a "
+                "single tier's subnetwork definition. This usually means the start "
+                "feature's from-tier could not be determined, or its subnetwork "
+                "trace definition (condition barriers) was not applied. Verify the "
+                f"start feature {global_id} belongs to exactly one subnetwork, or "
+                "specify tier_name explicitly. "
+                f"(engine detail: {error.get('message')})"
+            )
         raise RuntimeError(f"Trace failed: {raw.get('error', raw)}")
     response: dict[str, Any] = {
         "traceType": trace_type,
@@ -1738,6 +2160,19 @@ def _trace_response(
     }
     if named_trace_name:
         response["namedTraceName"] = named_trace_name
+    # When the from-tier was inferred from configured validity (no actual
+    # subnetwork membership — e.g. the subnetwork was not built), flag the trace
+    # as best-effort so the caller does not treat the tier as authoritative.
+    if tier_resolution and tier_resolution.get("resolvedBy") == "configured":
+        response["tierResolution"] = {
+            "resolvedBy": "configured",
+            "tierName": tier_resolution.get("tierName"),
+            "note": (
+                "The start feature is not a member of a built subnetwork. The "
+                "from-tier was inferred from configured validity and the trace is "
+                "best-effort; verify the result or specify tier_name explicitly."
+            ),
+        }
     return response
 
 
@@ -1953,12 +2388,19 @@ async def network_downstream_trace(
     Calls the UN trace REST endpoint directly with traceType="downstream".
     No named/persisted trace configuration is used.
 
+    The from-tier is derived from the start feature's subnetwork membership, and
+    that tier's subnetwork trace definition (condition barriers + inclusion flags)
+    is applied automatically so the trace stops at barriers and subnetwork controllers.
+
     - For junction features, supply terminal_id to identify the correct terminal.
     - For edge features, supply percent_along (0.0-1.0) to locate the starting
       point along the edge.
     - Omitting both works when the feature has a single terminal.
-    - Provide domain_network_name and tier_name to scope the trace to a specific
-      domain network and tier; omitting them uses the server defaults.
+    - domain_network_name and tier_name are optional hints. In a partitioned
+      domain the feature resolves to a single tier, so they can be omitted. In a
+      hierarchical domain where the feature belongs to several tiers, supply
+      tier_name to disambiguate; if it is still ambiguous (or the feature is not a
+      subnetwork member) a structured result is returned instead of a trace.
     """
     service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
     if not service_url:
@@ -1975,6 +2417,7 @@ async def network_downstream_trace(
         terminal_id,
         percent_along,
         service_url,
+        token,
     )
     return _trace_response("downstream", service_url, starting_global_id, raw)
 
@@ -1996,12 +2439,19 @@ async def network_upstream_trace(
     Calls the UN trace REST endpoint directly with traceType="upstream".
     No named/persisted trace configuration is used.
 
+    The from-tier is derived from the start feature's subnetwork membership, and
+    that tier's subnetwork trace definition (condition barriers + inclusion flags)
+    is applied automatically so the trace stops at subnetwork controllers.
+
     - For junction features, supply terminal_id to identify the correct terminal.
     - For edge features, supply percent_along (0.0-1.0) to locate the starting
       point along the edge.
     - Omitting both works when the feature has a single terminal.
-    - Provide domain_network_name and tier_name to scope the trace to a specific
-      domain network and tier; omitting them uses the server defaults.
+    - domain_network_name and tier_name are optional hints. In a partitioned
+      domain the feature resolves to a single tier, so they can be omitted. In a
+      hierarchical domain where the feature belongs to several tiers, supply
+      tier_name to disambiguate; if it is still ambiguous (or the feature is not a
+      subnetwork member) a structured result is returned instead of a trace.
     """
     service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
     if not service_url:
@@ -2018,6 +2468,7 @@ async def network_upstream_trace(
         terminal_id,
         percent_along,
         service_url,
+        token,
     )
     return _trace_response("upstream", service_url, starting_global_id, raw)
 
@@ -2209,6 +2660,7 @@ async def network_trace(
             terminal_id,
             percent_along,
             service_url,
+            token,
         )
 
     raw = _enrich_trace_elements(raw, service_url, token)
