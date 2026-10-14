@@ -47,6 +47,22 @@ the form `vX.Y.Z`. `hatch-vcs` derives the package version from that tag.
 
 ### Changed
 
+- **psmcp-router-utilitynetwork**: `network_downstream_trace` and
+  `network_upstream_trace` now derive the from-tier from the start feature's
+  *actual* subnetwork membership (`SUBNETWORKNAME` → `TIERNAME`, not configured
+  tier validity) and apply that tier's subnetwork trace definition (condition
+  barriers and inclusion flags) automatically. `domain_network_name` and
+  `tier_name` became optional hints rather than the sole source of truth. When the
+  feature is an actual member of subnetworks in more than one tier — e.g. a barrier
+  object between subnetworks (possible even in a partitioned domain), or a
+  hierarchical-domain feature — the tools return a structured `tier_ambiguous`
+  (with `memberTiers`) / `tier_no_membership` result instead of issuing an invalid
+  trace. When the feature is not a member of a built subnetwork (e.g. the
+  subnetwork failed to build) but a controller may be traceable, the from-tier
+  falls back to the feature's configured tier validity: a single configured tier
+  is used best-effort (the response carries `tierResolution.resolvedBy =
+  "configured"` with a verify note), and multiple configured tiers return
+  `tier_ambiguous` with `configuredTiers`.
 - **psmcp-router-utilitynetwork**: Replaced server-side workflow orchestration tools
   (`network_downstream_customer_impact`, `network_isolation_analysis`,
   `network_spatial_impact`) with MCP prompt-based skill workflows. Complex
@@ -54,6 +70,15 @@ the form `vX.Y.Z`. `hatch-vcs` derives the package version from that tag.
   orchestrate atomic tools step-by-step.
 
 ### Fixed
+
+- **psmcp-router-utilitynetwork**: Direct downstream/upstream traces now succeed. Previously the trace configuration
+  omitted the tier's condition barriers, so the trace failed with engine
+  `extendedCode -2147208616` ("multiple subnetwork controllers with different
+  subnetwork names"). The tier's subnetwork trace definition is now applied, and
+  that specific engine error is surfaced as an actionable message.
+- **psmcp-router-utilitynetwork**: `network_get_metadata` `domain_networks` section
+  now reports the correct per-tier topology. Tier parsing read the non-existent
+  keys `tierId`/`topologyType`; it now reads `tierID`/`tierTopology`.
 
 ### Removed
 

@@ -46,8 +46,8 @@ Most tools accept an optional `network_service_url` parameter that overrides `UT
 |------|-------------|
 | `network_named_trace` | Run a saved/named trace configuration from a starting feature. Resolves config by name, uses persisted traceType. |
 | `network_list_named_traces` | List all saved trace configurations with name, globalId, description, traceType, creator. |
-| `network_downstream_trace` | Direct downstream trace (no named config). |
-| `network_upstream_trace` | Direct upstream trace (no named config). |
+| `network_downstream_trace` | Direct downstream trace. Derives the from-tier from the start feature and applies that tier's subnetwork trace definition automatically. |
+| `network_upstream_trace` | Direct upstream trace. Derives the from-tier from the start feature and applies that tier's subnetwork trace definition automatically. |
 | `network_trace` | Generic trace accepting any trace type: isolation, connected, subnetwork, subnetworkController, loops, shortestPath. Enriches results with resolved names. |
 
 ### Feature Inspection
@@ -130,8 +130,34 @@ lifetime until:
   encapsulates barriers, conditions, output filters, and result types. Preferred when
   a matching saved config exists.
 - **Direct traces** (`network_downstream_trace`, `network_upstream_trace`) hit the
-  trace endpoint without a named config. Use when you need a simple directional trace
-  without preconfigured filters.
+  trace endpoint without a named config. The from-tier is derived from the start
+  feature, and that tier's subnetwork trace definition (its condition barriers and
+  inclusion flags) is applied automatically so the trace stops at subnetwork
+  controllers. `domain_network_name` and `tier_name` are optional hints/
+  disambiguators, not the sole source of truth.
+
+  The from-tier is resolved in this order:
+
+  1. **Actual subnetwork membership** — the tier(s) of the subnetwork(s) the
+     feature is genuinely a member of (`SUBNETWORKNAME` → `TIERNAME`), not the tiers
+     it is merely configured as a valid object in. This is authoritative. A single
+     member tier resolves cleanly. A feature that is an actual member of subnetworks
+     in more than one tier — e.g. a barrier object between two subnetworks, which can
+     occur even in a partitioned domain — yields multiple tiers (`memberTiers`).
+  2. **Configured-validity fallback** — when the feature is *not* a member of a
+     built subnetwork (for example the subnetwork failed to build) but a controller
+     may still be traceable, the from-tier is inferred from the tiers the feature is
+     a configured valid object of. A single configured tier resolves best-effort;
+     the trace response is flagged with `tierResolution.resolvedBy = "configured"`
+     and a note that the result should be verified. Configured validity is usually
+     broad (a device is often valid in several tiers), so this frequently yields
+     multiple tiers (`configuredTiers`).
+  3. **Disambiguation** — when more than one tier remains, a supplied `tier_name`
+     is validated against the candidate set and used; otherwise the tool returns a
+     structured `tier_ambiguous` result (listing `memberTiers` or `configuredTiers`)
+     so the caller can choose. If the feature is neither a member nor configured-
+     valid in any tier, it returns `tier_no_membership`. In all these cases the tool
+     declines to run an invalid trace rather than guessing.
 - **Generic trace** (`network_trace`) handles all other trace types — isolation,
   connected, subnetwork, subnetworkController, loops, shortestPath — with enriched
   element names in the output.

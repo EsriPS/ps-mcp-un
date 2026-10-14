@@ -222,3 +222,5 @@ packages/psmcp-auth-*/src/psmcp_auth_*/_version.py
 certs/
 /skills_samples
 env 4
+.vscode/settings.json
+.vscode/settings.json

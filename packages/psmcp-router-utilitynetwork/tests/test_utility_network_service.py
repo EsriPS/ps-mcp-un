@@ -48,7 +48,9 @@ class TestNamedTraceGlobalId:
     def test_resolves_paraphrase_case_insensitive(self) -> None:
         manager = MagicMock()
         manager.trace_configurations.return_value.query.return_value = {
-            "traceConfigurations": [{"globalId": "{guid}", "title": "Distribution Isolation Trace"}],
+            "traceConfigurations": [
+                {"globalId": "{guid}", "title": "Distribution Isolation Trace"}
+            ],
         }
         assert svc._named_trace_global_id(manager, "distribution isolation") == "{guid}"
 
@@ -75,11 +77,17 @@ class TestGetCustomerData:
             {"name": "account_status"},
         ]
         cust_layer.query.return_value = MagicMock(
-            features=[MagicMock(attributes={"meter_id": "M1", "full_name": "Jane", "account_status": "active"})]
+            features=[
+                MagicMock(
+                    attributes={"meter_id": "M1", "full_name": "Jane", "account_status": "active"}
+                )
+            ]
         )
 
         with patch.object(svc, "_find_layer", return_value=cust_layer):
-            result = svc.get_customer_data(gis, "https://server/UN/FeatureServer", [], meter_ids=["M1"])
+            result = svc.get_customer_data(
+                gis, "https://server/UN/FeatureServer", [], meter_ids=["M1"]
+            )
 
         assert result["customers"] == [{"meter_id": "M1", "account_status": "active"}]
 
@@ -149,7 +157,13 @@ class TestRunNamedTrace:
         gis = MagicMock()
         un_manager = MagicMock()
         un_manager.trace_configurations.return_value.query.return_value = {
-            "traceConfigurations": [{"globalId": "{cfg-id}", "name": "Downstream Service Point Trace", "traceType": "downstream"}],
+            "traceConfigurations": [
+                {
+                    "globalId": "{cfg-id}",
+                    "name": "Downstream Service Point Trace",
+                    "traceType": "downstream",
+                }
+            ],
         }
         un_manager.trace.return_value = {"success": True, "traceResults": {}}
 
@@ -171,7 +185,9 @@ class TestRunNamedTrace:
         gis = MagicMock()
         un_manager = MagicMock()
         un_manager.trace_configurations.return_value.query.return_value = {
-            "traceConfigurations": [{"globalId": "{cfg-id}", "name": "Some Trace", "traceType": "downstream"}],
+            "traceConfigurations": [
+                {"globalId": "{cfg-id}", "name": "Some Trace", "traceType": "downstream"}
+            ],
         }
         un_manager.trace.return_value = {"success": True, "traceResults": {}}
 
@@ -195,7 +211,11 @@ class TestRunNamedTrace:
         un_manager = MagicMock()
         un_manager.trace_configurations.return_value.query.return_value = {
             "traceConfigurations": [
-                {"globalId": "{cfg-id}", "name": "Downstream - XFR Load and Customer Count", "traceType": "downstream"},
+                {
+                    "globalId": "{cfg-id}",
+                    "name": "Downstream - XFR Load and Customer Count",
+                    "traceType": "downstream",
+                },
             ],
         }
         terminals_info = {
@@ -204,7 +224,11 @@ class TestRunNamedTrace:
             "usageType": "esriUNFCUTDevice",
             "terminals": [
                 {"terminalId": 7, "terminalName": "2wXFR:Primary", "recommendedFor": "upstream"},
-                {"terminalId": 8, "terminalName": "2wXFR:Secondary", "recommendedFor": "downstream"},
+                {
+                    "terminalId": 8,
+                    "terminalName": "2wXFR:Secondary",
+                    "recommendedFor": "downstream",
+                },
             ],
         }
 
@@ -230,7 +254,9 @@ class TestRunNamedTrace:
         gis = MagicMock()
         un_manager = MagicMock()
         un_manager.trace_configurations.return_value.query.return_value = {
-            "traceConfigurations": [{"globalId": "{cfg-id}", "name": "Some Trace", "traceType": "downstream"}],
+            "traceConfigurations": [
+                {"globalId": "{cfg-id}", "name": "Some Trace", "traceType": "downstream"}
+            ],
         }
         un_manager.trace.return_value = {"success": True, "traceResults": {}}
         single = {"terminals": [{"terminalId": 1, "terminalName": "T", "recommendedFor": None}]}
@@ -254,7 +280,9 @@ class TestRunNamedTrace:
         gis = MagicMock()
         un_manager = MagicMock()
         un_manager.trace_configurations.return_value.query.return_value = {
-            "traceConfigurations": [{"globalId": "{cfg-id}", "name": "Some Trace", "traceType": "downstream"}],
+            "traceConfigurations": [
+                {"globalId": "{cfg-id}", "name": "Some Trace", "traceType": "downstream"}
+            ],
         }
         un_manager.trace.return_value = {"success": True, "traceResults": {}}
 
@@ -279,7 +307,13 @@ class TestRunNamedTrace:
         gis = MagicMock()
         un_manager = MagicMock()
         un_manager.trace_configurations.return_value.query.return_value = {
-            "traceConfigurations": [{"globalId": "{cfg-id}", "name": "Downstream Service Point Trace", "traceType": "downstream"}],
+            "traceConfigurations": [
+                {
+                    "globalId": "{cfg-id}",
+                    "name": "Downstream Service Point Trace",
+                    "traceType": "downstream",
+                }
+            ],
         }
         invalid = {
             "status": svc.INVALID_START_POINT,
@@ -400,7 +434,9 @@ class TestValidateStartInTier:
         subnet_layer = MagicMock()
         subnet_layer.properties.id = 6
         subnet_layer.query.return_value = MagicMock(
-            features=[MagicMock(attributes={"SUBNETWORKNAME": subnetworkname, "TIERNAME": subnet_rank})]
+            features=[
+                MagicMock(attributes={"SUBNETWORKNAME": subnetworkname, "TIERNAME": subnet_rank})
+            ]
         )
         flc = MagicMock()
         flc.layers = [device_layer, subnet_layer]
@@ -435,11 +471,12 @@ class TestValidateStartInTier:
 
     def test_skips_when_trace_has_no_tier(self) -> None:
         result = svc._validate_start_in_tier(
-            MagicMock(), "https://server/UN/FeatureServer", "{x}", {"title": "T", "traceConfiguration": {}}
+            MagicMock(),
+            "https://server/UN/FeatureServer",
+            "{x}",
+            {"title": "T", "traceConfiguration": {}},
         )
         assert result is None
-
-
 
 
 @pytest.mark.asyncio
@@ -514,9 +551,7 @@ class TestGetDeviceTerminals:
     def test_resolves_terminals(self) -> None:
         flc = self._flc({"globalid": "{a}", "assetgroup": 1, "assettype": 2})
         with patch.object(svc, "FeatureLayerCollection", return_value=flc):
-            result = svc.get_device_terminals(
-                MagicMock(), "https://server/UN/FeatureServer", "{a}"
-            )
+            result = svc.get_device_terminals(MagicMock(), "https://server/UN/FeatureServer", "{a}")
 
         assert result["terminalCount"] == 2
         assert result["terminalConfigurationId"] == 5
@@ -539,9 +574,7 @@ class TestGetDeviceTerminals:
         flc.properties.get.return_value = {}
         with patch.object(svc, "FeatureLayerCollection", return_value=flc):
             with pytest.raises(ValueError, match="not a utility network"):
-                svc.get_device_terminals(
-                    MagicMock(), "https://server/UN/FeatureServer", "{a}"
-                )
+                svc.get_device_terminals(MagicMock(), "https://server/UN/FeatureServer", "{a}")
 
 
 @pytest.mark.asyncio
@@ -560,3 +593,397 @@ async def test_network_device_terminals_tool() -> None:
         )
 
     assert result["globalId"] == "{a}"
+
+
+# ---------------------------------------------------------------------------
+# Tier resolution + subnetwork-definition trace configuration
+# ---------------------------------------------------------------------------
+
+
+def _tier_data_element(tier_definition: str = "esriTDPartitioned") -> dict:
+    """A data element with one Electric domain, two tiers, and a subnetwork
+    trace definition on the Distribution tier.
+
+    Mirrors the live structure confirmed against the mcp_une service: the
+    partitioned/hierarchical designation lives on the domain network's
+    ``tierDefinition``, and the condition barriers live on the tier's
+    ``updateSubnetworkTraceConfiguration``.
+    """
+    return {
+        "domainNetworks": [
+            {
+                "domainNetworkName": "Electric",
+                "tierDefinition": tier_definition,
+                "subnetworkLayerId": 6,
+                "junctionSources": [
+                    {"layerId": 3, "utilityNetworkFeatureClassUsageType": "esriUNFCUTDevice"},
+                ],
+                "edgeSources": [],
+                "tiers": [
+                    {
+                        "tierID": 2,
+                        "name": "Electric Transmission",
+                        "rank": 2,
+                        "tierTopology": "esriTTTRadial",
+                        "validDevices": [
+                            {
+                                "assetGroupCode": 10,
+                                "assetTypes": [{"assetTypeCode": 100}],
+                            },
+                        ],
+                    },
+                    {
+                        "tierID": 5,
+                        "name": "Electric Distribution",
+                        "rank": 5,
+                        "tierTopology": "esriTTTMesh",
+                        "validDevices": [
+                            {
+                                "assetGroupCode": 1,
+                                "assetTypes": [
+                                    {"assetTypeCode": 2},
+                                    {"assetTypeCode": 3},
+                                ],
+                            },
+                        ],
+                        "updateSubnetworkTraceConfiguration": {
+                            "includeContainers": True,
+                            "includeContent": True,
+                            "includeStructures": True,
+                            "includeBarriers": True,
+                            "conditionBarriers": [
+                                {
+                                    "name": "E:Operating Status Normal",
+                                    "type": "networkAttribute",
+                                    "operator": "equal",
+                                    "value": 1,
+                                },
+                            ],
+                        },
+                    },
+                ],
+            }
+        ]
+    }
+
+
+def _tier_flc(
+    subnetworkname: str,
+    subnet_rank: int,
+    assetgroup: int = 1,
+    assettype: int = 2,
+) -> MagicMock:
+    """Build a FeatureLayerCollection mock: a device layer (id 3) holding the
+    start feature and a subnetwork layer (id 6) mapping subnetwork -> tier rank.
+
+    assetgroup/assettype default to the Distribution-valid 1/2 so configured-tier
+    lookups also resolve for these features.
+    """
+    device_layer = MagicMock()
+    device_layer.properties.id = 3
+    device_layer.query.return_value = MagicMock(
+        features=[
+            MagicMock(
+                attributes={
+                    "assetid": "XFR-1",
+                    "subnetworkname": subnetworkname,
+                    "assetgroup": assetgroup,
+                    "assettype": assettype,
+                }
+            )
+        ]
+    )
+    subnet_layer = MagicMock()
+    subnet_layer.properties.id = 6
+    rows = (
+        [MagicMock(attributes={"SUBNETWORKNAME": subnetworkname, "TIERNAME": subnet_rank})]
+        # An empty subnetworkname means the subnetwork layer query returns nothing.
+        if subnetworkname
+        else []
+    )
+    subnet_layer.query.return_value = MagicMock(features=rows)
+    flc = MagicMock()
+    flc.layers = [device_layer, subnet_layer]
+    return flc
+
+
+def _tier_flc_multi(subnetworkname: str, rows: list[tuple[str, int]]) -> MagicMock:
+    """Like _tier_flc but the subnetwork layer returns several rows (used for the
+    barrier-object case where a feature is a member of multiple subnetworks that
+    belong to different tiers).
+
+    Args:
+        subnetworkname: The comma-separated SUBNETWORKNAME on the start feature.
+        rows: (subnetwork name, tier rank) pairs the subnetwork layer returns.
+    """
+    device_layer = MagicMock()
+    device_layer.properties.id = 3
+    device_layer.query.return_value = MagicMock(
+        features=[
+            MagicMock(
+                attributes={
+                    "assetid": "BARRIER-1",
+                    "subnetworkname": subnetworkname,
+                    "assetgroup": 1,
+                    "assettype": 2,
+                }
+            )
+        ]
+    )
+    subnet_layer = MagicMock()
+    subnet_layer.properties.id = 6
+    subnet_layer.query.return_value = MagicMock(
+        features=[
+            MagicMock(attributes={"SUBNETWORKNAME": name, "TIERNAME": rank}) for name, rank in rows
+        ]
+    )
+    flc = MagicMock()
+    flc.layers = [device_layer, subnet_layer]
+    return flc
+
+
+class TestParseTierDefinition:
+    def test_returns_domain_and_tier(self) -> None:
+        de = _tier_data_element()
+        found = svc._parse_tier_definition(de, "Electric", "Electric Distribution")
+        assert found is not None
+        domain, tier = found
+        assert domain["domainNetworkName"] == "Electric"
+        assert tier["name"] == "Electric Distribution"
+
+    def test_case_insensitive(self) -> None:
+        de = _tier_data_element()
+        found = svc._parse_tier_definition(de, "electric", "electric distribution")
+        assert found is not None
+
+    def test_missing_tier_returns_none(self) -> None:
+        de = _tier_data_element()
+        assert svc._parse_tier_definition(de, "Electric", "No Such Tier") is None
+
+
+class TestIsHierarchical:
+    def test_partitioned_is_not_hierarchical(self) -> None:
+        de = _tier_data_element("esriTDPartitioned")
+        domain = de["domainNetworks"][0]
+        assert svc._is_hierarchical(domain) is False
+
+    def test_hierarchical(self) -> None:
+        de = _tier_data_element("esriTDHierarchical")
+        domain = de["domainNetworks"][0]
+        assert svc._is_hierarchical(domain) is True
+
+
+class TestTierTraceConfiguration:
+    def test_lifts_subnetwork_definition(self) -> None:
+        de = _tier_data_element()
+        _, tier = svc._parse_tier_definition(de, "Electric", "Electric Distribution")
+        config = svc._parse_tier_trace_configuration(tier)
+        assert config["includeContainers"] is True
+        assert config["includeBarriers"] is True
+        assert len(config["conditionBarriers"]) == 1
+
+    def test_returns_copy_not_reference(self) -> None:
+        de = _tier_data_element()
+        _, tier = svc._parse_tier_definition(de, "Electric", "Electric Distribution")
+        config = svc._parse_tier_trace_configuration(tier)
+        config["conditionBarriers"].append({"name": "injected"})
+        # Mutating the returned config must not affect the source tier.
+        assert len(tier["updateSubnetworkTraceConfiguration"]["conditionBarriers"]) == 1
+
+    def test_missing_definition_returns_empty(self) -> None:
+        assert svc._parse_tier_trace_configuration({"name": "No Config Tier"}) == {}
+
+
+class TestResolveFeatureTier:
+    def _run(self, de: dict, flc: MagicMock, **kwargs) -> dict:
+        with patch.object(svc, "FeatureLayerCollection", return_value=flc):
+            return svc._resolve_feature_tier(
+                MagicMock(), "https://server/UN/FeatureServer", "{dev}", de, **kwargs
+            )
+
+    def test_partitioned_single_member_auto_resolves(self) -> None:
+        # Feature is an actual member of one Distribution subnetwork (rank 5),
+        # so it resolves to a single tier via membership.
+        de = _tier_data_element("esriTDPartitioned")
+        flc = _tier_flc("RMT001", subnet_rank=5)
+        result = self._run(de, flc)
+        assert result["status"] == svc.TIER_RESOLVED
+        assert result["tierName"] == "Electric Distribution"
+        assert result["subnetworkNames"] == ["RMT001"]
+        assert result["resolvedBy"] == "membership"
+
+    def test_barrier_object_member_of_two_tiers_is_ambiguous(self) -> None:
+        # A barrier object between subnetworks is an actual member of two
+        # subnetworks in different tiers — ambiguous even in a partitioned domain.
+        de = _tier_data_element("esriTDPartitioned")
+        flc = _tier_flc_multi(
+            subnetworkname="RMT001, 138 kV - 6",
+            rows=[("RMT001", 5), ("138 kV - 6", 2)],
+        )
+        result = self._run(de, flc)
+        assert result["status"] == svc.TIER_AMBIGUOUS
+        assert sorted(result["memberTiers"]) == ["Electric Distribution", "Electric Transmission"]
+
+    def test_barrier_object_disambiguated_by_tier_name(self) -> None:
+        de = _tier_data_element("esriTDPartitioned")
+        flc = _tier_flc_multi(
+            subnetworkname="RMT001, 138 kV - 6",
+            rows=[("RMT001", 5), ("138 kV - 6", 2)],
+        )
+        result = self._run(de, flc, tier_name="Electric Distribution")
+        assert result["status"] == svc.TIER_RESOLVED
+        assert result["tierName"] == "Electric Distribution"
+        assert result["resolvedBy"] == "membership"
+
+    def test_matching_tier_name_resolves(self) -> None:
+        de = _tier_data_element()
+        flc = _tier_flc("RMT001", subnet_rank=5)
+        result = self._run(
+            de, flc, domain_network_name="Electric", tier_name="Electric Distribution"
+        )
+        assert result["status"] == svc.TIER_RESOLVED
+        assert result["tierName"] == "Electric Distribution"
+        assert result["resolvedBy"] == "membership"
+
+    def test_wrong_tier_name_is_rejected(self) -> None:
+        de = _tier_data_element()
+        flc = _tier_flc("RMT001", subnet_rank=5)
+        result = self._run(de, flc, tier_name="Electric Transmission")
+        assert result["status"] == svc.TIER_AMBIGUOUS
+        assert result["memberTiers"] == ["Electric Distribution"]
+
+    def test_feature_not_located_is_no_membership(self) -> None:
+        de = _tier_data_element()
+        flc = MagicMock()
+        flc.layers = []  # no layers -> feature cannot be located
+        result = self._run(de, flc)
+        assert result["status"] == svc.TIER_NO_MEMBERSHIP
+
+    def test_no_membership_falls_back_to_single_configured_tier(self) -> None:
+        # Subnetwork not built (empty SUBNETWORKNAME), but the feature's asset
+        # type (group 1 / type 2) is a configured valid object of exactly one
+        # tier (Electric Distribution). The from-tier is inferred best-effort.
+        de = _tier_data_element()
+        flc = _tier_flc("", subnet_rank=5, assetgroup=1, assettype=2)
+        result = self._run(de, flc)
+        assert result["status"] == svc.TIER_RESOLVED
+        assert result["tierName"] == "Electric Distribution"
+        assert result["resolvedBy"] == "configured"
+
+    def test_no_membership_multiple_configured_tiers_is_ambiguous(self) -> None:
+        # Asset type 3 is configured-valid only in Distribution here, so to get a
+        # multi-configured case we make the feature valid in both tiers by using
+        # a data element where group 1 / type 2 is valid in both.
+        de = _tier_data_element()
+        # Make the feature (group 1 / type 2) also valid in Transmission.
+        de["domainNetworks"][0]["tiers"][0]["validDevices"] = [
+            {"assetGroupCode": 1, "assetTypes": [{"assetTypeCode": 2}]},
+        ]
+        flc = _tier_flc("", subnet_rank=5, assetgroup=1, assettype=2)
+        result = self._run(de, flc)
+        assert result["status"] == svc.TIER_AMBIGUOUS
+        assert sorted(result["configuredTiers"]) == [
+            "Electric Distribution",
+            "Electric Transmission",
+        ]
+        assert result["resolvedBy"] == "configured"
+
+    def test_no_membership_multiple_configured_resolved_by_tier_name(self) -> None:
+        de = _tier_data_element()
+        de["domainNetworks"][0]["tiers"][0]["validDevices"] = [
+            {"assetGroupCode": 1, "assetTypes": [{"assetTypeCode": 2}]},
+        ]
+        flc = _tier_flc("", subnet_rank=5, assetgroup=1, assettype=2)
+        result = self._run(de, flc, tier_name="Electric Distribution")
+        assert result["status"] == svc.TIER_RESOLVED
+        assert result["tierName"] == "Electric Distribution"
+        assert result["resolvedBy"] == "configured"
+
+    def test_no_membership_and_not_configured_is_no_membership(self) -> None:
+        # Feature's asset type is not a valid object of any tier -> no membership.
+        de = _tier_data_element()
+        flc = _tier_flc("", subnet_rank=5, assetgroup=999, assettype=999)
+        result = self._run(de, flc)
+        assert result["status"] == svc.TIER_NO_MEMBERSHIP
+
+
+class TestTraceResponseErrorHandling:
+    def test_multiple_subnetwork_controllers_actionable_error(self) -> None:
+        raw = {
+            "success": False,
+            "error": {
+                "extendedCode": svc._MULTIPLE_SUBNETWORK_CONTROLLERS,
+                "message": "multiple subnetwork controllers ...",
+            },
+        }
+        with pytest.raises(RuntimeError, match="multiple subnetworks"):
+            svc._trace_response("downstream", "https://server/UN/FeatureServer", "{a}", raw)
+
+    def test_generic_error_still_raises(self) -> None:
+        raw = {"success": False, "error": {"extendedCode": -1, "message": "boom"}}
+        with pytest.raises(RuntimeError, match="Trace failed"):
+            svc._trace_response("downstream", "https://server/UN/FeatureServer", "{a}", raw)
+
+    def test_resolution_status_passthrough(self) -> None:
+        raw = {"status": svc.TIER_AMBIGUOUS, "memberTiers": ["A", "B"]}
+        result = svc._trace_response("downstream", "https://server/UN/FeatureServer", "{a}", raw)
+        assert result["status"] == svc.TIER_AMBIGUOUS
+        assert result["memberTiers"] == ["A", "B"]
+
+    def test_success_builds_response(self) -> None:
+        raw = {"success": True, "traceResults": {"elements": [1, 2, 3]}}
+        result = svc._trace_response("downstream", "https://server/UN/FeatureServer", "{a}", raw)
+        assert result["traceType"] == "downstream"
+        assert result["traceResults"]["elements"] == [1, 2, 3]
+
+    def test_configured_resolution_adds_best_effort_note(self) -> None:
+        raw = {
+            "success": True,
+            "traceResults": {"elements": [1]},
+            "_tierResolution": {"resolvedBy": "configured", "tierName": "Electric Distribution"},
+        }
+        result = svc._trace_response("downstream", "https://server/UN/FeatureServer", "{a}", raw)
+        assert result["tierResolution"]["resolvedBy"] == "configured"
+        assert result["tierResolution"]["tierName"] == "Electric Distribution"
+        assert "best-effort" in result["tierResolution"]["note"]
+        # The internal marker must not leak into traceResults.
+        assert "_tierResolution" not in result["traceResults"]
+
+    def test_membership_resolution_adds_no_note(self) -> None:
+        raw = {
+            "success": True,
+            "traceResults": {"elements": [1]},
+            "_tierResolution": {"resolvedBy": "membership", "tierName": "Electric Distribution"},
+        }
+        result = svc._trace_response("downstream", "https://server/UN/FeatureServer", "{a}", raw)
+        assert "tierResolution" not in result
+
+
+class TestConfiguredTiersForFeature:
+    def test_matches_single_tier(self) -> None:
+        de = _tier_data_element()
+        domain = de["domainNetworks"][0]
+        tiers = svc._parse_configured_tiers_for_feature(domain, {"assetgroup": 1, "assettype": 2})
+        assert tiers == ["Electric Distribution"]
+
+    def test_matches_multiple_tiers(self) -> None:
+        de = _tier_data_element()
+        domain = de["domainNetworks"][0]
+        domain["tiers"][0]["validDevices"] = [
+            {"assetGroupCode": 1, "assetTypes": [{"assetTypeCode": 2}]},
+        ]
+        tiers = svc._parse_configured_tiers_for_feature(domain, {"assetgroup": 1, "assettype": 2})
+        assert sorted(tiers) == ["Electric Distribution", "Electric Transmission"]
+
+    def test_no_match_returns_empty(self) -> None:
+        de = _tier_data_element()
+        domain = de["domainNetworks"][0]
+        tiers = svc._parse_configured_tiers_for_feature(
+            domain, {"assetgroup": 999, "assettype": 999}
+        )
+        assert tiers == []
+
+    def test_missing_attrs_returns_empty(self) -> None:
+        de = _tier_data_element()
+        domain = de["domainNetworks"][0]
+        assert svc._parse_configured_tiers_for_feature(domain, {}) == []
