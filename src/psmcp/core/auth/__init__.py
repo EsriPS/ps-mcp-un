@@ -13,7 +13,7 @@ from __future__ import annotations
 import logging
 import os
 
-from fastmcp.server.dependencies import get_access_token
+from fastmcp.server.dependencies import get_access_token, get_http_headers
 
 from psmcp.core.auth.arcgis_provider import ArcGISAuthProvider
 from psmcp.core.auth.arcgis_verifier import ArcGISTokenVerifier
@@ -32,7 +32,8 @@ def resolve_token(token: str | None = None, required: bool = False) -> str | Non
 
         1. Explicit ``token`` argument.
         2. FastMCP authentication context (per-request).
-        3. ``ARCGIS_TOKEN`` environment variable.
+        3. ``X-ArcGIS-Token`` request header.
+        4. ``ARCGIS_TOKEN`` environment variable.
 
     Args:
         token: Optional explicit token from the caller.
@@ -54,6 +55,10 @@ def resolve_token(token: str | None = None, required: bool = False) -> str | Non
             return access_token.token
     except Exception as exc:
         logger.debug("Could not get token from authentication context: %s", exc)
+
+    request_token = get_http_headers(include={"x-arcgis-token"}).get("x-arcgis-token")
+    if request_token:
+        return request_token
 
     env_token = os.getenv("ARCGIS_TOKEN")
     if env_token:
