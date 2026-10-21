@@ -1,3 +1,10 @@
+---
+name: downstream-customer-impact
+description: Identify customers affected downstream of a utility-network device.
+tags:
+    - agent-runtime
+---
+
 # Downstream Customer Impact Workflow
 
 You are identifying all customers affected downstream of a network device by manually orchestrating the trace, filtering, and resolution steps.

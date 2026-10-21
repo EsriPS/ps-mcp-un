@@ -1,3 +1,10 @@
+---
+name: trace-interpretation
+description: Interpret utility-network trace results and report operational impact.
+tags:
+  - agent-runtime
+---
+
 # Utility Network Trace Result Interpretation
 
 This document teaches you how to read and interpret utility network trace results, understand phase encoding, recognize subnetwork controllers, and identify unexpected results.

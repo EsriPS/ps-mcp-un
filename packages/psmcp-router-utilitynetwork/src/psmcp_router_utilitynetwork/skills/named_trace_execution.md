@@ -1,3 +1,10 @@
+---
+name: named-trace-execution
+description: Execute a persisted utility-network trace and interpret its results.
+tags:
+   - agent-runtime
+---
+
 # Named Trace Execution Workflow
 
 You are discovering and executing a named trace configuration for a complex network analysis.

@@ -1,3 +1,10 @@
+---
+name: metadata-discovery
+description: Discover utility-network structure, asset types, and trace metadata.
+tags:
+   - agent-runtime
+---
+
 # Metadata Discovery Workflow
 
 You are guiding the user through exploring utility network structure and metadata.
