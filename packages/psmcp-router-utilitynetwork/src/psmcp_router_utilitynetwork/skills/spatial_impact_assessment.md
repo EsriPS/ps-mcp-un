@@ -1,3 +1,10 @@
+---
+name: spatial-impact-assessment
+description: Assess utility devices and downstream customer impact within a supplied area.
+tags:
+  - agent-runtime
+---
+
 # Spatial Impact Assessment Workflow
 
 You are assessing customer impact within a geographic area by manually orchestrating spatial queries, start-point minimization, downstream tracing, and customer resolution.
