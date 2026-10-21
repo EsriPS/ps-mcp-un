@@ -371,6 +371,73 @@ async def query_feature_layer(
 
 
 @feature_service_router.tool
+async def query_feature_layer_statistics(
+    endpoint_url: str,
+    where: str,
+    statistics: list[dict[str, str]],
+    group_by_fields: list[str] | None = None,
+    order_by_fields: str | None = None,
+    timeout: int = 30,
+    token: str | None = None,
+) -> dict[str, Any]:
+    """Return server-side aggregate statistics without downloading matching features.
+
+    Use this for totals, averages, minima/maxima, counts, or grouped breakdowns
+    across many features. Each ``statistics`` item requires ``statisticType``,
+    ``onStatisticField``, and ``outStatisticFieldName``. ArcGIS REST expects
+    ``outStatistics`` as JSON; this tool serializes it correctly and always
+    sets ``returnGeometry=false``.
+
+    Args:
+        endpoint_url: Full URL of the feature layer. ``/query`` is appended automatically.
+        where: SQL-like filter that selects the features to aggregate.
+        statistics: Aggregate definitions, for example
+            ``[{"statisticType": "sum", "onStatisticField": "Shape__Length",
+            "outStatisticFieldName": "total_length_m"}]``.
+        group_by_fields: Optional fields that define one aggregate row per group.
+        order_by_fields: Optional server-side ordering, such as ``"ASSETGROUP"``.
+        timeout: Request timeout in seconds.
+        token: Optional ArcGIS token.
+    """
+    if not statistics:
+        return {
+            "success": False,
+            "status_code": None,
+            "data": None,
+            "error": "At least one statistic definition is required.",
+        }
+
+    required_keys = {"statisticType", "onStatisticField", "outStatisticFieldName"}
+    invalid_statistics = [item for item in statistics if not required_keys.issubset(item)]
+    if invalid_statistics:
+        return {
+            "success": False,
+            "status_code": None,
+            "data": None,
+            "error": "Each statistic requires statisticType, onStatisticField, and outStatisticFieldName.",
+        }
+
+    groups = [field.strip() for field in (group_by_fields or []) if field.strip()]
+    parameters: dict[str, Any] = {
+        "where": where,
+        "outStatistics": json.dumps(statistics),
+        "returnGeometry": "false",
+        "outFields": ",".join(groups) if groups else "",
+    }
+    if groups:
+        parameters["groupByFieldsForStatistics"] = ",".join(groups)
+    if order_by_fields:
+        parameters["orderByFields"] = order_by_fields
+
+    return await _query_feature_layer(
+        endpoint_url=endpoint_url,
+        parameters=parameters,
+        timeout=timeout,
+        token=resolve_token(token),
+    )
+
+
+@feature_service_router.tool
 async def get_service_or_layer_details(
     endpoint_url: str, timeout: int = 30, token: str | None = None
 ) -> dict[str, Any]:
