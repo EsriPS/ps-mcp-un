@@ -1,3 +1,10 @@
+---
+name: isolation-analysis
+description: Determine isolation actions and affected assets for utility-network work.
+tags:
+  - agent-runtime
+---
+
 # Isolation Analysis Workflow
 
 You are identifying the isolation/protective devices that must be operated to isolate a network element, by manually orchestrating trace and filtering steps.

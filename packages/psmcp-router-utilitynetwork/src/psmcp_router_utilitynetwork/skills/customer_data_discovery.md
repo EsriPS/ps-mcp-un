@@ -1,3 +1,10 @@
+---
+name: customer-data-discovery
+description: Discover customer data layers, fields, and joins for utility-network analysis.
+tags:
+   - agent-runtime
+---
+
 # Customer Data Discovery Workflow
 
 You are discovering the customer data source before calling workflow tools.

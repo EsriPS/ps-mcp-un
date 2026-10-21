@@ -15,5 +15,6 @@
         "editor.defaultFormatter": "charliermarsh.ruff"
     },
     "snyk.advanced.autoSelectOrganization": true,
-    "python-envs.defaultEnvManager": "ms-python.python:system"
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python.terminal.useEnvFile": true
 }
