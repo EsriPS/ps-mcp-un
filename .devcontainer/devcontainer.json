@@ -23,7 +23,7 @@
 			"dockerDashComposeVersion": "latest"
 		},
     // https://github.com/devcontainers/features/tree/main/src/python
-		"ghcr.io/devcontainers/features/python:1.8.0": {
+		"ghcr.io/devcontainers/features/python:1.8.1": {
 			"installTools": true,
 			"version": "3.13"
 		},
