@@ -114,6 +114,8 @@ Direction-sensitive traces starting from a multi-terminal device need the correc
 3. Pick the terminal whose `recommendedFor` matches the trace direction —
    `"downstream"` (secondary / low side / line side) for downstream traces,
    `"upstream"` (primary / high side) for upstream/isolation traces.
+   A feature with a single terminal reports `recommendedFor: "any"` and a
+   `terminalNote`. Use that terminal for every trace direction.
 4. If more than one terminal matches or the direction is unclear, ask the user to pick
    rather than guessing.
 5. Call `network_named_trace` with the chosen `terminal_id`.

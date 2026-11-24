@@ -561,6 +561,22 @@ class TestGetDeviceTerminals:
         assert result["usageType"] == "esriUNFCUTDevice"
         recommended = {t["terminalId"]: t["recommendedFor"] for t in result["terminals"]}
         assert recommended == {1: "upstream", 2: "downstream"}
+        assert "terminalNote" not in result
+
+    @pytest.mark.parametrize("is_upstream", [False, True, None])
+    def test_single_terminal_is_recommended_for_any_direction(self, is_upstream) -> None:
+        flc = self._flc({"globalid": "{a}", "assetgroup": 1, "assettype": 2})
+        de = flc.query_data_elements.return_value["layerDataElements"][0]["dataElement"]
+        de["terminalConfigurations"][0]["terminals"] = [
+            {"terminalId": 1, "terminalName": "Single Terminal", "isUpstreamTerminal": is_upstream}
+        ]
+        with patch.object(svc, "FeatureLayerCollection", return_value=flc):
+            result = svc.get_device_terminals(MagicMock(), "https://server/UN/FeatureServer", "{a}")
+        assert result["terminalCount"] == 1
+        assert result["terminals"][0]["recommendedFor"] == svc.TERMINAL_ANY_DIRECTION
+        # The raw flag is still reported for transparency.
+        assert result["terminals"][0]["isUpstreamTerminal"] is is_upstream
+        assert result["terminalNote"] == svc.SINGLE_TERMINAL_NOTE
 
     def test_feature_not_found(self) -> None:
         flc = self._flc(None)

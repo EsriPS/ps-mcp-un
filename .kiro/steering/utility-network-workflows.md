@@ -84,6 +84,11 @@ Only fall back to direct trace tools when NO named trace matches the user's inte
 
 ## Terminal Selection Logic
 
+### Single-Terminal Features
+If `network_device_terminals` returns `terminalCount == 1` (`recommendedFor` is `'any'`), use that terminal for **every** trace type: upstream, downstream and isolation. Its `isUpstreamTerminal` flag does not restrict direction. Do not report it as a caveat. Service points, meters and line ends are typical single-terminal features.
+
+The rules below apply only to features with 2 or more terminals.
+
 ### Downstream Traces
 
 Use the **DOWNSTREAM** terminal:

@@ -28,7 +28,8 @@ Use named traces when the workflow requires barriers, functions (load sums, cust
 
 3. **Resolve the starting feature's terminal:**
    Call `network_device_terminals(global_id="{GlobalID}")`.
-   - Match terminal direction to the trace's `traceType`:
+   - If `terminalCount == 1` (`recommendedFor = "any"`): use that terminal for any trace type. No direction check and no caveat.
+   - If `terminalCount > 1`, match terminal direction to the trace's `traceType`:
      - downstream trace → DOWNSTREAM terminal (`recommendedFor = "downstream"`)
      - upstream/isolation trace → UPSTREAM terminal (`recommendedFor = "upstream"`)
    - If ambiguous: ask the user

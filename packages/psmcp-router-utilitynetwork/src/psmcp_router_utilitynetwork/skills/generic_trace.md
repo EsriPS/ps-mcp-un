@@ -33,9 +33,16 @@ Do these in order. Skip a step only if you already hold its result in this sessi
 | 7 | Find asset codes for output filters | `network_get_metadata(section="asset_types")` | `networkSourceId`, `assetGroupCode`, `assetTypeCode` |
 
 Rules for step 3 and 4:
-- A **junction** (device, junction, junction object) needs `terminal_id` when it has more than one terminal. A single-terminal feature may omit it.
 - An **edge** (line, edge object) needs `percent_along` between 0.0 and 1.0. If the user gives no position along the line, use `0.5` and say so in the answer.
-- Terminal direction: use the terminal whose `recommendedFor` is `"downstream"` for downstream traces and `"upstream"` for upstream and isolation traces. If more than one terminal fits, or none is marked, **ask the user**. Never guess on a multi-terminal device.
+- A **junction** (device, junction, junction object): choose the terminal by `terminalCount` from `network_device_terminals`:
+
+| `terminalCount` | Terminal to use | Direction check |
+|-----------------|-----------------|-----------------|
+| 0 | Omit `terminal_id` | None |
+| 1 | That terminal's `terminalId`, for **every** trace type (upstream, downstream, isolation, ...) | **None.** `recommendedFor` is `"any"`. A lone terminal is the only way into the feature, so it is always the correct start. Do not mention its direction or report it as a caveat |
+| 2 or more | `recommendedFor == "downstream"` for downstream traces; `recommendedFor == "upstream"` for upstream and isolation traces | If more than one terminal fits, or none is marked, **ask the user**. Never guess on a multi-terminal device |
+
+Single-terminal features include service points, meters, line ends, junctions and most connection points. Multi-terminal features are typically transformers, switches, fuses, breakers and reclosers.
 - A location missing a required property (terminal for a junction, percent for an edge) is silently ignored by the server, which can produce "no starting points".
 
 ## 2. Parameter Reference for `network_generic_trace`
@@ -157,7 +164,7 @@ Purpose: features between the starting points and the end of the flow, away from
 | Optional | `barriers`; `target_tier_name` (continue into a lower tier); `configuration_overrides` (for example `includeBarriers`, `outputConditions` to return only protective devices, `functions` for load sums); `result_types`; `moment` |
 
 Prerequisites:
-1. `network_device_terminals` and pick `recommendedFor == "downstream"`.
+1. `network_device_terminals`. With one terminal, use it (`recommendedFor` is `"any"`). With 2 or more, pick `recommendedFor == "downstream"`.
 2. If the result is `status: "tier_ambiguous"` (the feature is in several tiers, for example in a hierarchical domain): ask the user which tier, then call again with `tier_name`. See section 7.
 3. If the result is `status: "tier_no_membership"`: the feature is in no built subnetwork. Tell the user. Do not retry blindly.
 
@@ -180,7 +187,7 @@ Purpose: features between the starting points and the subnetwork controller(s), 
 | Mandatory (resolved for you) | Domain network, tier |
 | Optional | Same as `downstream`. `ignoreBarriersAtStartingPoints` is useful when you use discovered protective devices as the starting points of the next upstream trace |
 
-Prerequisites: same as `downstream`, but pick `recommendedFor == "upstream"`.
+Prerequisites: same as `downstream`, but on a multi-terminal device pick `recommendedFor == "upstream"`. A single-terminal feature (for example a service point or meter) is traced upstream from its only terminal; this is correct and needs no caveat.
 
 To return only upstream protective devices, add an output condition for the protective category: first run `network_get_metadata(section="categories")` to find the category name, then pass it in `configuration_overrides.outputConditions` (section 5).
 
@@ -194,6 +201,8 @@ Purpose: the minimum set of operable devices (valves, switches) that must be ope
 | Mandatory | A **filter barrier** that identifies isolating devices. Without it the tool returns `{"error": ...}` and does not call the server |
 | Mandatory (resolved for you) | Domain network, tier |
 | Optional | `barriers`; `includeIsolated: true` (also return every isolated feature, not only the isolating devices); `includeBarriers`; `outputConditions` / `outputFilters` to narrow the isolating types (for example only accessible valves) |
+
+Terminal: with one terminal use it; with 2 or more use `recommendedFor == "upstream"` (see section 1).
 
 Where the filter barrier comes from, in order:
 1. `network_get_metadata(section="categories")`. Look for a category such as "Isolating" or "Protective" (the name is user-defined, so use the exact name returned).
@@ -399,7 +408,8 @@ Interpret results with `utility_network_trace_interpretation`. For customer coun
 | "No starting points found" | A junction is missing `terminal_id`, an edge is missing `percent_along`, or the topology is dirty. The tool revalidates the topology once and retries. If it persists, re-run `network_device_terminals` |
 | Empty `elements` | The start terminal faces away from the flow, a barrier sits on the start (try `ignoreBarriersAtStartingPoints`), or the start is a controller with nothing beyond it |
 | Directional trace returns little for a subnetwork controller | Check the terminal with 
-etwork_device_terminals and confirm the direction (ecommendedFor) matches the trace |
+etwork_device_terminals and confirm the direction (
+ecommendedFor) matches the trace |
 | Result is huge | Add barriers or `outputFilters`, drop geometry, use `summarize`, lower `max_elements` |
 | Server error about dirty areas | The topology is not validated for the traced area. Report it. Results are not reliable until validated |
 | Server error naming an attribute or category | The name does not exist. Re-read `network_get_metadata` |
@@ -412,5 +422,5 @@ etwork_device_terminals and confirm the direction (ecommendedFor) matches the t
 3. Never guess a terminal, tier, category name, attribute name or coded value. Look them up with the tools in section 1, or ask.
 4. Prefer a matching named trace. Prefer `configuration_overrides` over `trace_configuration`.
 5. Keep requests small: request only the result types the question needs.
-6. State your assumptions in the answer: the terminal used, a default `percent_along`, the tier resolved, a truncated list.
+6. State your assumptions in the answer: the terminal chosen on a multi-terminal device, a default `percent_along`, the tier resolved, a truncated list. Do not raise a caveat about the direction of a single terminal (`recommendedFor: "any"`).
 7. Report warnings and best-effort resolutions to the user.

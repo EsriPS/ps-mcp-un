@@ -29,12 +29,7 @@ When the user provides an address rather than a GlobalID:
 4. Extract its GlobalID and proceed with the appropriate trace/workflow tool
 5. Warn the user that geocode + spatial proximity is approximate — confirm the identified feature before tracing
 
-### 811 Call-Before-You-Dig Workflow
 
-1. Geocode the dig location via `find_address_candidates` (or accept user-provided geometry)
-2. If a point location, buffer by 250 feet (or user-specified distance) to create an impact polygon
-3. Call `network_spatial_impact` with the buffered geometry
-4. Report all network assets within the impact area
 
 ---
 
@@ -79,6 +74,11 @@ Only fall back to direct trace tools when NO named trace matches the user's inte
 ---
 
 ## Terminal Selection Logic
+
+### Single-Terminal Features
+If `network_device_terminals` returns `terminalCount == 1` (`recommendedFor` is `'any'`), use that terminal for **every** trace type: upstream, downstream and isolation. Its `isUpstreamTerminal` flag does not restrict direction. Do not report it as a caveat. Service points, meters and line ends are typical single-terminal features.
+
+The rules below apply only to features with 2 or more terminals.
 
 ### Downstream Traces
 

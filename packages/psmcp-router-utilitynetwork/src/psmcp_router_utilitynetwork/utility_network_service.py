@@ -1204,6 +1204,15 @@ def _named_trace_global_id(un_manager: UtilityNetworkManager, named_trace_name: 
 # ---------------------------------------------------------------------------
 
 
+# recommendedFor value for a device's only terminal: valid for every trace direction.
+TERMINAL_ANY_DIRECTION = "any"
+SINGLE_TERMINAL_NOTE = (
+    "This feature has a single terminal. Use it for every trace type (upstream, "
+    "downstream, isolation, ...); its isUpstreamTerminal flag does not restrict "
+    "the trace direction."
+)
+
+
 def _terminal_recommended_for(is_upstream_terminal: bool | None) -> str | None:
     """Map a terminal's isUpstreamTerminal flag to the trace direction it suits."""
     if is_upstream_terminal is True:
@@ -2307,6 +2316,13 @@ def get_device_terminals(
                 }
                 for t in cfg.get("terminals", []) or []
             ]
+            terminal_note = None
+            if len(terminals) == 1:
+                # A lone terminal is the only way into the device, so it is the correct
+                # start for every trace direction. Its isUpstreamTerminal flag would
+                # otherwise label it "downstream" or "upstream", which misleads callers.
+                terminals[0]["recommendedFor"] = TERMINAL_ANY_DIRECTION
+                terminal_note = SINGLE_TERMINAL_NOTE
             usage_type = source.get("utilityNetworkFeatureClassUsageType")
             tier_info = _feature_tier_info(flc, domain, attrs)
             return {
@@ -2324,6 +2340,7 @@ def get_device_terminals(
                 "terminalConfigurationName": cfg.get("terminalConfigurationName"),
                 "terminals": terminals,
                 "terminalCount": len(terminals),
+                **({"terminalNote": terminal_note} if terminal_note else {}),
                 "subnetworkName": tier_info["subnetworkName"],
                 "subnetworkNames": tier_info["subnetworkNames"],
                 "tiers": tier_info["tiers"],
@@ -2970,6 +2987,13 @@ async def network_device_terminals(
     have multiple terminals. This tool resolves the valid terminals for a given
     feature so you can pick the correct ``terminal_id`` before calling
     ``network_named_trace`` (or another trace tool).
+
+    Each terminal has ``recommendedFor``:
+    - ``"any"``: the feature has exactly one terminal. Use it for every trace type,
+      and do not report its direction as a caveat (see ``terminalNote``).
+    - ``"upstream"`` / ``"downstream"``: on multi-terminal devices, start upstream and
+      isolation traces from the upstream terminal and downstream traces from the
+      downstream terminal. If the choice is unclear, ask the user.
     """
     service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
     if not service_url:
