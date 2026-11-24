@@ -1306,6 +1306,30 @@ class TestNetworkGenericTraceTool:
         assert result["summary"]["totalElements"] == 5
         assert "elements" not in result["summary"]
 
+    async def test_source_names_filled_from_mapping_and_summary_has_no_paging(self) -> None:
+        raw = {
+            "success": True,
+            "traceResults": {
+                "sourceMapping": {"9": "ElectricDevice"},
+                "elements": [
+                    {"networkSourceId": 9, "sourceName": "", "assetGroupName": "G"}
+                    for _ in range(3)
+                ],
+            },
+        }
+        with (
+            patch.object(svc, "_connect_gis", return_value=MagicMock()),
+            patch.object(svc, "run_generic_trace", return_value=raw),
+            patch.object(svc, "_enrich_trace_elements", side_effect=lambda r, *_: r),
+        ):
+            result = await self._call(
+                trace_type="connected", starting_points=[{"global_id": "{a}"}], summarize=True
+            )
+        assert {e["sourceName"] for e in result["traceResults"]["elements"]} == {"ElectricDevice"}
+        assert result["summary"]["groups"][0]["sourceName"] == "ElectricDevice"
+        assert "truncated" not in result["summary"]
+        assert "note" not in result["summary"]
+
     async def test_tier_ambiguity_passthrough(self) -> None:
         resolution = {"status": svc.TIER_AMBIGUOUS, "memberTiers": ["A", "B"]}
         with (

@@ -2137,6 +2137,20 @@ def run_generic_trace(
     return raw
 
 
+def _fill_source_names(results: dict[str, Any]) -> None:
+    """Set an empty element ``sourceName`` from the response's ``sourceMapping``.
+
+    Some services return data element sources without a name, which leaves the
+    enriched ``sourceName`` empty. The trace response always carries the mapping.
+    """
+    mapping = results.get("sourceMapping") or {}
+    for elem in results.get("elements") or []:
+        if isinstance(elem, dict) and not elem.get("sourceName"):
+            name = mapping.get(str(elem.get("networkSourceId")))
+            if name:
+                elem["sourceName"] = name
+
+
 def _limit_trace_elements(raw: dict[str, Any], max_elements: int | None) -> dict[str, Any]:
     """Cap ``traceResults.elements`` and record the original count."""
     results = raw.get("traceResults", raw)
@@ -3157,9 +3171,14 @@ async def network_generic_trace(
     start_id = first_start.get("global_id") or first_start.get("globalId") or ""
     response = _trace_response(trace_type, service_url, start_id, raw)
     results = response.get("traceResults")
+    if isinstance(results, dict):
+        _fill_source_names(results)
     if summarize and isinstance(results, dict) and results.get("elements"):
-        response["summary"] = summarize_trace_results(results, limit=0)
-        response["summary"].pop("elements", None)
+        summary = summarize_trace_results(results, source_mapping=results.get("sourceMapping"))
+        # The summary is counts only; the element list and its paging notes live in traceResults.
+        for key in ("elements", "truncated", "note"):
+            summary.pop(key, None)
+        response["summary"] = summary
     if isinstance(results, dict):
         _limit_trace_elements(response, max_elements)
     warnings = _generic_trace_warnings(trace_type, stopping_points)
