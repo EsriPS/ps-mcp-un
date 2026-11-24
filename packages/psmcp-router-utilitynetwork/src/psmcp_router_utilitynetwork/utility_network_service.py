@@ -1772,6 +1772,389 @@ def _run_trace_with_subnetwork(
 
 
 # ---------------------------------------------------------------------------
+# Generic trace helpers (full UtilityNetworkServer/trace request surface)
+# ---------------------------------------------------------------------------
+_GENERIC_TRACE_TYPES = frozenset(
+    {
+        "connected",
+        "subnetwork",
+        "subnetworkController",
+        "upstream",
+        "downstream",
+        "loops",
+        "shortestPath",
+        "isolation",
+        # Enterprise 12.1+: path (replaces shortestPath) and circuit (telecom domains).
+        "path",
+        "circuit",
+    }
+)
+# Trace types whose behavior comes from the tier's subnetwork definition. The REST API
+# does not auto-populate it (Pro does), so the router sends it as the configuration.
+_TIER_AWARE_TRACE_TYPES = frozenset(
+    {"upstream", "downstream", "isolation", "subnetwork", "subnetworkController"}
+)
+_GENERIC_RESULT_TYPES = frozenset(
+    {"elements", "aggregatedGeometry", "connectivity", "features", "associations", "circuits"}
+)
+_DEFAULT_MAX_ELEMENTS = 500
+# Accepted spellings for location properties -> REST property name.
+_LOCATION_KEY_ALIASES = {
+    "global_id": "globalId",
+    "globalid": "globalId",
+    "terminal_id": "terminalId",
+    "terminalid": "terminalId",
+    "percent_along": "percentAlong",
+    "percentalong": "percentAlong",
+    "is_filter_barrier": "isFilterBarrier",
+    "isfilterbarrier": "isFilterBarrier",
+}
+_RESULT_TYPE_KEY_ALIASES = {
+    "include_geometry": "includeGeometry",
+    "include_propagated_values": "includePropagatedValues",
+    "include_domain_descriptions": "includeDomainDescriptions",
+    "include_flow_directions": "includeFlowDirections",
+    "network_attribute_names": "networkAttributeNames",
+    "diagram_template_name": "diagramTemplateName",
+    "result_type_fields": "resultTypeFields",
+}
+
+
+def _normalize_trace_location(
+    loc: dict[str, Any], location_type: str, label: str
+) -> dict[str, Any]:
+    """Convert a caller-supplied location to a REST ``traceLocations`` entry.
+
+    Accepts snake_case or camelCase keys. Raises ``ValueError`` if the location
+    is not a dict or has no ``globalId``.
+    """
+    if not isinstance(loc, dict):
+        raise ValueError(f"{label} must be an object, got {type(loc).__name__}.")
+    entry: dict[str, Any] = {"traceLocationType": location_type}
+    for key, value in loc.items():
+        if value is None:
+            continue
+        rest_key = _LOCATION_KEY_ALIASES.get(str(key).lower(), key)
+        if rest_key == "traceLocationType":
+            continue
+        entry[rest_key] = value
+    if not entry.get("globalId"):
+        raise ValueError(f"{label} is missing 'global_id'.")
+    percent = entry.get("percentAlong")
+    if percent is not None and not 0.0 <= float(percent) <= 1.0:
+        raise ValueError(f"{label}: percent_along must be between 0.0 and 1.0.")
+    if location_type == "startingPoint":
+        entry.pop("isFilterBarrier", None)
+    return entry
+
+
+def _normalize_result_types(
+    result_types: list[str | dict[str, Any]] | None,
+) -> list[dict[str, Any]]:
+    """Validate and normalize ``resultTypes``; defaults to ``[{"type": "elements"}]``."""
+    if not result_types:
+        return [{"type": "elements"}]
+    normalized: list[dict[str, Any]] = []
+    for item in result_types:
+        if isinstance(item, str):
+            item = {"type": item}
+        if not isinstance(item, dict):
+            raise ValueError("Each result type must be a string or an object.")
+        entry = {_RESULT_TYPE_KEY_ALIASES.get(str(k), k): v for k, v in item.items()}
+        rtype = entry.get("type")
+        if rtype not in _GENERIC_RESULT_TYPES:
+            raise ValueError(
+                f"Invalid result type '{rtype}'. "
+                f"Accepted values: {', '.join(sorted(_GENERIC_RESULT_TYPES))}."
+            )
+        normalized.append(entry)
+    return normalized
+
+
+def _validate_generic_trace_request(
+    trace_type: str,
+    starting_points: list[dict[str, Any]] | None,
+    barriers: list[dict[str, Any]] | None,
+    subnetwork_name: str | None,
+    stopping_points: list[dict[str, Any]] | None = None,
+    trace_configuration: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Validate the trace type and locations.
+
+    Returns ``(starting_points, barriers, stopping_points)`` as REST ``traceLocations``
+    entries. Raises ``ValueError`` with an actionable message when the request cannot
+    be valid for the trace type.
+    """
+    if trace_type not in _GENERIC_TRACE_TYPES:
+        raise ValueError(
+            f"Invalid trace_type '{trace_type}'. "
+            f"Accepted values: {', '.join(sorted(_GENERIC_TRACE_TYPES))}."
+        )
+    starts = [
+        _normalize_trace_location(p, "startingPoint", f"starting_points[{i}]")
+        for i, p in enumerate(starting_points or [])
+    ]
+    barrier_locs = [
+        _normalize_trace_location(b, "barrier", f"barriers[{i}]")
+        for i, b in enumerate(barriers or [])
+    ]
+    stop_locs = [
+        _normalize_trace_location(s, "stoppingPoint", f"stopping_points[{i}]")
+        for i, s in enumerate(stopping_points or [])
+    ]
+    if stop_locs and trace_type != "path":
+        raise ValueError("stopping_points are only used by path traces.")
+
+    by_subnetwork = trace_type in {"subnetwork", "subnetworkController"} and bool(subnetwork_name)
+    by_circuit_name = trace_type == "circuit" and bool(
+        (trace_configuration or {}).get("circuitName")
+    )
+    if not starts and not (by_subnetwork or by_circuit_name):
+        raise ValueError(
+            "At least one starting point is required. Only subnetwork / "
+            "subnetworkController traces (with subnetwork_name) and circuit traces "
+            "(with trace_configuration.circuitName) may omit starting points."
+        )
+    if trace_type == "loops" and len(starts) > 1:
+        raise ValueError("A loops trace starts from a single starting point.")
+    if trace_type == "shortestPath" and len(starts) < 2:
+        raise ValueError(
+            "A shortestPath trace needs two starting points. Prefer a path trace "
+            "(one starting point and one stopping point) on Enterprise 12.1+."
+        )
+    if by_subnetwork or by_circuit_name:
+        # The REST API expects an empty location list when a subnetwork or circuit
+        # is identified by name.
+        starts = []
+    return starts, barrier_locs, stop_locs
+
+
+def _generic_trace_warnings(
+    trace_type: str, stopping_points: list[dict[str, Any]] | None
+) -> list[str]:
+    """Non-fatal advice attached to a generic trace response."""
+    warnings: list[str] = []
+    if trace_type == "shortestPath":
+        warnings.append(
+            "shortestPath is deprecated from ArcGIS Enterprise 12.1. Use trace_type='path' "
+            "with one starting point, one stopping point and "
+            "trace_configuration.shortestPathNetworkAttributeName."
+        )
+    if trace_type == "path" and not stopping_points:
+        warnings.append(
+            "No stopping_points were given. Traditional domain networks require at least "
+            "one stopping point for a path trace; only telecom domain networks can omit it."
+        )
+    return warnings
+
+
+def _generic_trace_configuration(
+    trace_configuration: dict[str, Any] | None,
+    domain_network_name: str | None,
+    tier_name: str | None,
+    subnetwork_name: str | None,
+    target_tier_name: str | None = None,
+    configuration_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build the REST ``traceConfiguration``.
+
+    The scoping hints fill keys that are missing or empty and never replace a
+    populated value. ``configuration_overrides`` is applied last and does replace.
+    """
+    config = copy.deepcopy(trace_configuration) if trace_configuration else {}
+    for key, value in (
+        ("domainNetworkName", domain_network_name),
+        ("tierName", tier_name),
+        ("targetTierName", target_tier_name),
+        ("subnetworkName", subnetwork_name),
+    ):
+        if value and not config.get(key):
+            config[key] = value
+    if configuration_overrides:
+        config.update(copy.deepcopy(configuration_overrides))
+    return config
+
+
+def _has_filter_barrier(config: dict[str, Any], barrier_locations: list[dict[str, Any]]) -> bool:
+    """True if an isolation trace has a filter barrier from the configuration or a location."""
+    return bool(
+        config.get("filterBarriers")
+        or config.get("filterFunctionBarriers")
+        or any(b.get("isFilterBarrier") for b in barrier_locations)
+    )
+
+
+def _tier_default_configuration(
+    gis: GIS,
+    service_url: str,
+    starts: list[dict[str, Any]],
+    domain_network_name: str | None,
+    tier_name: str | None,
+    token: str | None,
+) -> tuple[dict[str, Any], dict[str, Any] | None, dict[str, Any] | None]:
+    """Find the tier subnetwork definition to use as the trace configuration.
+
+    The tier comes from the first starting point's subnetwork membership, or from
+    ``domain_network_name`` + ``tier_name`` when there are no starting points.
+
+    Returns ``(configuration, tier_info, early_result)``. ``early_result`` is a
+    ``TIER_AMBIGUOUS`` / ``TIER_NO_MEMBERSHIP`` resolution the caller must return as is.
+    Lookup failures are logged and yield an empty configuration.
+    """
+    try:
+        data_element = _get_data_element(service_url, token)
+        if starts:
+            resolution = _resolve_feature_tier(
+                gis,
+                service_url,
+                starts[0]["globalId"],
+                data_element,
+                domain_network_name=domain_network_name,
+                tier_name=tier_name,
+            )
+            if resolution.get("status") != TIER_RESOLVED:
+                return {}, None, resolution
+            domain_name = resolution["domainNetworkName"]
+            resolved_tier = resolution["tierName"]
+            resolved_by = resolution.get("resolvedBy")
+        elif domain_network_name and tier_name:
+            domain_name, resolved_tier, resolved_by = domain_network_name, tier_name, "explicit"
+        else:
+            return {}, None, None
+        found = _parse_tier_definition(data_element, domain_name, resolved_tier)
+        if found is None:
+            return {}, None, None
+        config = _parse_tier_trace_configuration(found[1])
+        if not config:
+            return {}, None, None
+        # The tier definition may leave these empty; the server needs them to scope the trace.
+        for key, value in (("domainNetworkName", domain_name), ("tierName", resolved_tier)):
+            if not config.get(key):
+                config[key] = value
+        return config, {"resolvedBy": resolved_by, "tierName": resolved_tier}, None
+    except Exception as exc:
+        logger.warning(
+            "Could not resolve tier definition for generic trace (%s); "
+            "using the supplied configuration/hints.",
+            exc,
+        )
+        return {}, None, None
+
+
+def run_generic_trace(
+    gis: GIS,
+    network_service_url: str,
+    trace_type: str,
+    starting_points: list[dict[str, Any]] | None,
+    barriers: list[dict[str, Any]] | None = None,
+    trace_configuration: dict[str, Any] | None = None,
+    result_types: list[str | dict[str, Any]] | None = None,
+    domain_network_name: str | None = None,
+    tier_name: str | None = None,
+    subnetwork_name: str | None = None,
+    use_tier_defaults: bool = True,
+    moment: int | None = None,
+    out_sr: int | None = None,
+    token: str | None = None,
+    stopping_points: list[dict[str, Any]] | None = None,
+    target_tier_name: str | None = None,
+    configuration_overrides: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Execute any UtilityNetworkServer ``trace`` request.
+
+    ``trace_configuration`` is sent as the REST ``traceConfiguration`` and replaces
+    the tier defaults. When it is omitted and the trace type is subnetwork-based
+    (upstream, downstream, isolation, subnetwork, subnetworkController) and
+    ``use_tier_defaults`` is true, the tier's subnetwork definition is used instead.
+    ``configuration_overrides`` is merged on top of either.
+
+    A ``TIER_AMBIGUOUS`` / ``TIER_NO_MEMBERSHIP`` resolution is returned unchanged when
+    the tier cannot be resolved. Raises ``ValueError`` for requests that cannot be valid
+    (see ``_validate_generic_trace_request``), including an isolation trace with no
+    filter barrier.
+    """
+    starts, barrier_locs, stop_locs = _validate_generic_trace_request(
+        trace_type, starting_points, barriers, subnetwork_name, stopping_points, trace_configuration
+    )
+    rest_result_types = _normalize_result_types(result_types)
+    un_manager = UtilityNetworkManager(_utility_network_url(network_service_url), gis=gis)
+    locations = starts + barrier_locs + stop_locs
+
+    base = trace_configuration
+    tier_info: dict[str, Any] | None = None
+    if use_tier_defaults and not trace_configuration and trace_type in _TIER_AWARE_TRACE_TYPES:
+        tier_config, tier_info, early_result = _tier_default_configuration(
+            gis, network_service_url, starts, domain_network_name, tier_name, token
+        )
+        if early_result is not None:
+            return early_result
+        if tier_config:
+            base = tier_config
+    configuration = _generic_trace_configuration(
+        base,
+        domain_network_name,
+        tier_name,
+        subnetwork_name,
+        target_tier_name,
+        configuration_overrides,
+    )
+
+    if trace_type == "isolation" and not _has_filter_barrier(configuration, barrier_locs):
+        raise ValueError(
+            "An isolation trace needs a filter barrier that identifies the isolating "
+            "devices. Put one in trace_configuration (or configuration_overrides) under "
+            "'filterBarriers', for example a category condition on the network category "
+            "that marks isolating devices, or mark a barrier location with "
+            "is_filter_barrier=true."
+        )
+
+    logger.info(
+        "Running generic %s trace (%d starting points, %d barriers, %d stopping points, results=%s)",
+        trace_type,
+        len(starts),
+        len(barrier_locs),
+        len(stop_locs),
+        [r["type"] for r in rest_result_types],
+    )
+
+    def _do_trace() -> dict[str, Any]:
+        return un_manager.trace(
+            locations=locations,
+            trace_type=trace_type,
+            moment=moment,
+            configuration=configuration or None,
+            result_types=rest_result_types,
+            out_sr=out_sr,
+        )
+
+    raw = _do_trace()
+    if raw.get("error", {}).get("extendedCode") == _NO_STARTING_POINTS:
+        logger.warning("Generic trace found no starting points; validating topology and retrying.")
+        _validate_topology(un_manager, network_service_url, gis)
+        raw = _do_trace()
+    if isinstance(raw, dict) and tier_info is not None:
+        raw["_tierResolution"] = tier_info
+    return raw
+
+
+def _limit_trace_elements(raw: dict[str, Any], max_elements: int | None) -> dict[str, Any]:
+    """Cap ``traceResults.elements`` and record the original count."""
+    results = raw.get("traceResults", raw)
+    elements = results.get("elements") if isinstance(results, dict) else None
+    if not isinstance(elements, list):
+        return raw
+    results["totalElements"] = len(elements)
+    if max_elements is not None and max_elements >= 0 and len(elements) > max_elements:
+        results["elements"] = elements[:max_elements]
+        results["truncated"] = True
+        results["note"] = (
+            f"showing {max_elements} of {len(elements)} elements; "
+            "raise max_elements or use summarize=True for the full picture."
+        )
+    return raw
+
+
+# ---------------------------------------------------------------------------
 # Customer data, device terminals, and validation helpers
 # ---------------------------------------------------------------------------
 
@@ -2668,6 +3051,123 @@ async def network_trace(
     return _trace_response(trace_type, service_url, starting_global_id, raw)
 
 
+@utilitynetwork_router.tool(name="network_generic_trace")
+async def network_generic_trace(
+    trace_type: str,
+    starting_points: list[dict[str, Any]] | None = None,
+    barriers: list[dict[str, Any]] | None = None,
+    stopping_points: list[dict[str, Any]] | None = None,
+    trace_configuration: dict[str, Any] | None = None,
+    configuration_overrides: dict[str, Any] | None = None,
+    result_types: list[str | dict[str, Any]] | None = None,
+    network_service_url: str | None = None,
+    domain_network_name: str | None = None,
+    tier_name: str | None = None,
+    target_tier_name: str | None = None,
+    subnetwork_name: str | None = None,
+    use_tier_defaults: bool = True,
+    moment: int | None = None,
+    out_sr: int | None = None,
+    max_elements: int | None = _DEFAULT_MAX_ELEMENTS,
+    summarize: bool = False,
+    token: str | None = None,
+) -> dict[str, Any]:
+    """Run any utility network trace with the full UtilityNetworkServer ``trace`` options.
+
+    Prerequisite: call ``network_initialize_session`` first if not already done this session.
+    ALWAYS read the ``utility_network_generic_trace`` prompt first. It lists, per trace
+    type, the mandatory and optional arguments and which tools to call to obtain them.
+
+    trace_type (mandatory): connected | subnetwork | subnetworkController | upstream |
+        downstream | isolation | loops | path | circuit | shortestPath (deprecated).
+    starting_points: list of ``{"global_id": "{GUID}", "terminal_id": int?, "percent_along":
+        0.0-1.0?}``. Junctions need ``terminal_id`` when multi-terminal; edges need
+        ``percent_along``. Mandatory except for subnetwork/subnetworkController with
+        ``subnetwork_name`` and circuit with ``trace_configuration.circuitName``.
+    barriers: same shape, plus ``is_filter_barrier`` (an isolation trace needs a filter
+        barrier from here or from the configuration).
+    stopping_points: same shape. Only for ``path``; required for traditional domain networks.
+    trace_configuration: REST ``traceConfiguration``. Replaces the tier defaults entirely.
+    configuration_overrides: keys merged on top of the tier defaults (or on top of
+        ``trace_configuration``). Prefer this to change a few settings.
+    result_types: strings or objects: elements (default), features, connectivity,
+        aggregatedGeometry, associations, circuits. Objects may carry ``include_geometry``,
+        ``include_propagated_values``, ``network_attribute_names`` etc.
+    domain_network_name / tier_name / target_tier_name / subnetwork_name: scoping values
+        written into the configuration when it does not already set them.
+    use_tier_defaults: for upstream, downstream, isolation, subnetwork and
+        subnetworkController with no ``trace_configuration``, use the tier's subnetwork
+        definition (the tier comes from the start feature's subnetwork membership, or from
+        ``domain_network_name`` + ``tier_name``). Set false for an empty configuration.
+    moment / out_sr: optional session moment (epoch ms) and output spatial reference wkid.
+    max_elements: cap on returned ``elements`` (default 500; null = no cap).
+    summarize: also return grouped counts by source and asset group.
+
+    A response with ``status`` of ``tier_ambiguous`` or ``tier_no_membership`` means no trace
+    was run; see the prompt. ``{"error": ...}`` means the arguments were invalid. For a
+    saved trace configuration use ``network_named_trace`` instead.
+    """
+    service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
+    if not service_url:
+        raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
+    try:
+        # Validate before opening a GIS connection so bad input fails fast.
+        _validate_generic_trace_request(
+            trace_type,
+            starting_points,
+            barriers,
+            subnetwork_name,
+            stopping_points,
+            trace_configuration,
+        )
+        _normalize_result_types(result_types)
+    except ValueError as exc:
+        return {"error": str(exc)}
+
+    gis = _connect_gis(token)
+    try:
+        raw = await asyncio.to_thread(
+            run_generic_trace,
+            gis,
+            service_url,
+            trace_type,
+            starting_points,
+            barriers,
+            trace_configuration,
+            result_types,
+            domain_network_name,
+            tier_name,
+            subnetwork_name,
+            use_tier_defaults,
+            moment,
+            out_sr,
+            token,
+            stopping_points,
+            target_tier_name,
+            configuration_overrides,
+        )
+    except ValueError as exc:
+        # Raised after tier resolution (for example an isolation trace with no filter barrier).
+        return {"error": str(exc)}
+    if raw.get("status") in {TIER_AMBIGUOUS, TIER_NO_MEMBERSHIP}:
+        return raw
+    if not (raw.get("success") is False or raw.get("error")):
+        raw = _enrich_trace_elements(raw, service_url, token)
+    first_start = (starting_points or [{}])[0] or {}
+    start_id = first_start.get("global_id") or first_start.get("globalId") or ""
+    response = _trace_response(trace_type, service_url, start_id, raw)
+    results = response.get("traceResults")
+    if summarize and isinstance(results, dict) and results.get("elements"):
+        response["summary"] = summarize_trace_results(results, limit=0)
+        response["summary"].pop("elements", None)
+    if isinstance(results, dict):
+        _limit_trace_elements(response, max_elements)
+    warnings = _generic_trace_warnings(trace_type, stopping_points)
+    if warnings:
+        response["warnings"] = warnings
+    return response
+
+
 @utilitynetwork_router.tool(name="network_query_associations")
 async def network_query_associations(
     global_id: str,
@@ -2832,6 +3332,12 @@ def utility_network_customer_data_discovery() -> str:
 def utility_network_address_resolution() -> str:
     """Guide the AI through resolving an address to a network element GlobalID."""
     return _read_skill("address_to_network_element.md")
+
+
+@utilitynetwork_router.prompt(name="utility_network_generic_trace")
+def utility_network_generic_trace() -> str:
+    """Guide the AI through choosing and running any trace with network_generic_trace."""
+    return _read_skill("generic_trace.md")
 
 
 @utilitynetwork_router.prompt(name="utility_network_trace_interpretation")

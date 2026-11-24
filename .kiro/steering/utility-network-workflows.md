@@ -216,6 +216,9 @@ Use for simple traces that only need:
 
 No barriers, functions, propagators, or output filters are available via this tool.
 
+### `network_generic_trace` (Full Trace Request)
+Use when the request needs more than `network_trace` offers: several starting points, barriers, a custom `traceConfiguration` (condition barriers, functions, output conditions, propagators, inclusion flags), a chosen set of result types (`elements`, `features`, `connectivity`, `aggregatedGeometry`, `associations`), `shortestPath`, or a subnetwork traced by name. It applies the tier definition (upstream, downstream, isolation, subnetwork, subnetworkController) when no configuration is given, and also covers `path` and `circuit`. Prefer a named trace if one matches. Read the `utility_network_generic_trace` prompt first: it lists the mandatory and optional inputs for each trace type and the tool that supplies each one.
+
 ### `network_downstream_trace` / `network_upstream_trace` (Simple Directional)
 
 Use for straightforward directional traces without complex configuration. Same capabilities as `network_trace` with `trace_type="downstream"` or `"upstream"`, but with dedicated discoverability.

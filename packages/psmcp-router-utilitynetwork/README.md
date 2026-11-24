@@ -49,6 +49,7 @@ Most tools accept an optional `network_service_url` parameter that overrides `UT
 | `network_downstream_trace` | Direct downstream trace. Derives the from-tier from the start feature and applies that tier's subnetwork trace definition automatically. |
 | `network_upstream_trace` | Direct upstream trace. Derives the from-tier from the start feature and applies that tier's subnetwork trace definition automatically. |
 | `network_trace` | Generic trace accepting any trace type: isolation, connected, subnetwork, subnetworkController, loops, shortestPath. Enriches results with resolved names. |
+| `network_generic_trace` | Full `UtilityNetworkServer/trace` request: all trace types (incl. path and circuit), multiple starting points, barriers, custom `traceConfiguration`, selectable result types, `moment`/`out_sr`, result cap and summary. See [Generic trace](#generic-trace). |
 
 ### Feature Inspection
 
@@ -72,6 +73,8 @@ skill file with detailed decision logic, filtering rules, and error handling.
 | `utility_network_named_trace_execution` | Discovering and executing named trace configurations |
 | `utility_network_customer_data_discovery` | Discovering customer data sources on the network |
 | `utility_network_address_resolution` | Resolving an address to a network element GlobalID |
+| `utility_network_generic_trace` | Choosing arguments for and running any trace with `network_generic_trace` |
+| `utility_network_trace_interpretation` | Reading trace results, phases, and troubleshooting |
 
 ### Domain Resolution
 
@@ -114,6 +117,121 @@ Direction-sensitive traces starting from a multi-terminal device need the correc
 4. If more than one terminal matches or the direction is unclear, ask the user to pick
    rather than guessing.
 5. Call `network_named_trace` with the chosen `terminal_id`.
+
+### Generic trace
+
+`network_generic_trace` is the single entry point for traces that the saved-trace and
+directional tools cannot express. It maps onto the
+[Trace (UtilityNetworkServer)](https://developers.arcgis.com/rest/services-reference/enterprise/trace-utility-network-server/)
+REST operation.
+
+#### Arguments
+
+| Argument | REST parameter | Notes |
+|----------|----------------|-------|
+| `trace_type` | `traceType` | `connected`, `subnetwork`, `subnetworkController`, `upstream`, `downstream`, `isolation`, `loops`, `path`, `circuit`, `shortestPath` (deprecated) |
+| `starting_points` | `traceLocations` (`startingPoint`) | List of `{global_id, terminal_id?, percent_along?}`. |
+| `barriers` | `traceLocations` (`barrier`) | Same shape, plus `is_filter_barrier`. |
+| `stopping_points` | `traceLocations` (`stoppingPoint`) | `path` traces only. |
+| `trace_configuration` | `traceConfiguration` | Sent as given. Replaces the tier defaults. |
+| `configuration_overrides` | `traceConfiguration` | Merged over the tier defaults (or over `trace_configuration`). |
+| `result_types` | `resultTypes` | `elements` (default), `features`, `connectivity`, `aggregatedGeometry`, `associations`, `circuits`. Strings or objects (`include_geometry`, `include_propagated_values`, `network_attribute_names`, ...). |
+| `domain_network_name`, `tier_name`, `target_tier_name`, `subnetwork_name` | inside `traceConfiguration` | Fill keys the configuration leaves empty. They never replace a populated value. |
+| `moment`, `out_sr` | `moment`, `outSR` | Session moment (epoch ms) and output wkid. |
+| `use_tier_defaults`, `max_elements`, `summarize` | router only | Tier defaults on/off, element cap (default 500), grouped counts. |
+
+#### Required inputs by trace type
+
+M = mandatory, O = optional, X = rejected or unused. The agent skill
+([`skills/generic_trace.md`](src/psmcp_router_utilitynetwork/skills/generic_trace.md))
+also lists which tool supplies each value.
+
+| Trace type | Starting points | Barriers | Stopping points | Also needed |
+|------------|-----------------|----------|-----------------|-------------|
+| `connected` | M | O | X | |
+| `subnetwork` | M, or `subnetwork_name` | O | X | Domain network and tier (derived from the start, or pass both with `subnetwork_name`) |
+| `subnetworkController` | M, or `subnetwork_name` | O | X | Same as `subnetwork` |
+| `upstream` | M | O | X | Tier (derived; pass `tier_name` if ambiguous) |
+| `downstream` | M | O | X | Tier (derived; pass `tier_name` if ambiguous) |
+| `isolation` | M | O | X | A filter barrier, in the configuration or on a barrier location |
+| `loops` | M, exactly one | O | X | |
+| `path` | M | O | M for traditional domains | Enterprise 12.1 or later. Optional cost attribute, `numPaths`, `maxHops` |
+| `circuit` | M, or `trace_configuration.circuitName` | O | X | Telecom domain network. Enterprise 12.1 or later |
+| `shortestPath` | M, two | O | X | `shortestPathNetworkAttributeName`. Deprecated in 12.1: use `path` |
+
+#### Behavior added by the router
+
+- **Tier defaults.** For `upstream`, `downstream`, `isolation`, `subnetwork` and
+  `subnetworkController` with no `trace_configuration`, the tier's subnetwork definition is
+  used as the configuration. The tier comes from the first starting point's subnetwork
+  membership, or from `domain_network_name` + `tier_name` when there are no starting
+  points. An ambiguous tier returns `status: "tier_ambiguous"`, and a feature outside any
+  subnetwork returns `tier_no_membership`. Set `use_tier_defaults=false` to disable.
+- **Validation before any network call.** A bad trace type, a missing GlobalID,
+  `percent_along` outside 0 to 1, an unknown result type, a missing starting point,
+  more than one `loops` start, `stopping_points` on a non-path trace, or an isolation
+  trace with no filter barrier returns `{"error": "..."}`.
+- **Warnings.** A `warnings` list is added for a deprecated `shortestPath` and for a
+  `path` trace without stopping points.
+- **Retry.** If the server reports "No starting points found", topology is validated
+  once and the trace is retried.
+- **Name enrichment.** `elements` gain `sourceName`, `assetGroupName`, `assetTypeName`.
+- **Large results.** `max_elements` caps returned elements and sets `totalElements` and
+  `truncated`. `summarize=true` adds counts grouped by source and asset group.
+
+#### Examples
+
+Downstream trace with a barrier, returning elements and a merged geometry:
+
+```json
+{
+  "trace_type": "downstream",
+  "starting_points": [{"global_id": "{GUID}", "terminal_id": 2}],
+  "barriers": [{"global_id": "{GUID2}", "terminal_id": 1}],
+  "result_types": ["elements", {"type": "aggregatedGeometry"}],
+  "summarize": true
+}
+```
+
+Subnetwork by name, with extra inclusion flags on top of the tier defaults:
+
+```json
+{
+  "trace_type": "subnetwork",
+  "subnetwork_name": "RMT001",
+  "domain_network_name": "ElectricDistribution",
+  "tier_name": "Medium Voltage Radial",
+  "configuration_overrides": {"includeContainers": true, "includeContent": true},
+  "result_types": ["elements"]
+}
+```
+
+Shortest route between two devices (Enterprise 12.1 or later):
+
+```json
+{
+  "trace_type": "path",
+  "starting_points": [{"global_id": "{A}", "terminal_id": 1}],
+  "stopping_points": [{"global_id": "{Z}", "terminal_id": 1}],
+  "configuration_overrides": {"shortestPathNetworkAttributeName": "Shape length", "numPaths": 1},
+  "result_types": ["elements", "connectivity"]
+}
+```
+
+#### Which trace tool to use
+
+| Need | Tool |
+|------|------|
+| A saved configuration matches | `network_named_trace` |
+| Simple directional trace from one feature | `network_downstream_trace`, `network_upstream_trace` |
+| Everything else | `network_generic_trace` |
+
+The agent-facing guide is the `utility_network_generic_trace` prompt, served from
+[`skills/generic_trace.md`](src/psmcp_router_utilitynetwork/skills/generic_trace.md). It
+walks an agent through the pre-flight tools (`network_initialize_session`,
+`network_list_named_traces`, `network_device_terminals`, `network_get_metadata`), the
+inputs each trace type needs, the configuration keys and condition format, result type
+choice, and how to react to each response.
 
 ### Metadata caching
 
@@ -169,6 +287,18 @@ lifetime until:
   UtilityNetworkManager)
 
 ## Development
+
+Run the router tests and lint from the repo root:
+
+```bash
+uv run pytest packages/psmcp-router-utilitynetwork/tests/test_utility_network_service.py
+uv run ruff check packages/psmcp-router-utilitynetwork/src
+```
+
+Skill files live in `src/psmcp_router_utilitynetwork/skills/` and are served as MCP
+prompts through `_read_skill`. To add a skill, add the `.md` file and a
+`@utilitynetwork_router.prompt` that reads it.
+
 
 See the repo-level [README](../../README.md) and
 [docs/CREATING_A_ROUTER.md](../../docs/CREATING_A_ROUTER.md) for the broader router
