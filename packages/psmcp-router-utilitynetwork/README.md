@@ -68,7 +68,6 @@ skill file with detailed decision logic, filtering rules, and error handling.
 |--------|-------------|
 | `utility_network_metadata_discovery` | Exploring network schema, tiers, assets, and categories |
 | `utility_network_downstream_customer_impact` | Finding customers affected downstream of a device |
-| `utility_network_isolation_analysis` | Identifying isolation devices for a network element |
 | `utility_network_spatial_impact` | Assessing customer impact within a geographic area |
 | `utility_network_named_trace_execution` | Discovering and executing named trace configurations |
 | `utility_network_customer_data_discovery` | Discovering customer data sources on the network |

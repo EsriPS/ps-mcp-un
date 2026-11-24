@@ -10,7 +10,7 @@ This steering file teaches you how to reason about utility network workflows, se
 |----------------------|------------|
 | "What is the total connected downstream load?" | `network_list_named_traces` → match load trace → `network_named_trace` |
 | "List all downstream customers" / "Who is affected by this outage?" | Use prompt `utility_network_downstream_customer_impact` (multi-step: terminal → trace → filter → resolve) |
-| "What isolation devices must be operated?" / "How do I isolate this?" | Use prompt `utility_network_isolation_analysis` (multi-step: terminal → trace → filter devices) |
+| "What isolation devices must be operated?" / "How do I isolate this?" | Use prompt `utility_network_generic_trace`, section 3.6 (`network_generic_trace` with `trace_type="isolation"` and a filter barrier, then filter and present the devices) |
 | "Given this flood/fire area, what customers are affected?" | Use prompt `utility_network_spatial_impact` (multi-step: spatial query → minimize → trace → resolve) |
 | "Trace upstream from this meter to the source" | `network_upstream_trace` |
 | "What is the load at [address]?" | Probe data model → resolve address to service point → trace |

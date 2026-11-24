@@ -209,7 +209,7 @@ Where the filter barrier comes from, in order:
 2. Pass it as `configuration_overrides={"filterBarriers": [ ... ]}` (shape in section 5), or mark a barrier location with `is_filter_barrier: true`.
 3. If no isolating category exists, use `network_get_metadata(section="asset_types")` to find the device sources and ask the user which asset types isolate. Do not invent a category name.
 
-After the trace, remove the starting feature from the list. See `utility_network_isolation_analysis` for the full workflow that also names the devices.
+Before running it, check `network_list_named_traces()` for an isolation trace (for example "Distribution Isolation"). If one matches and the user confirms, use `network_named_trace` instead, then continue with the post-processing below.
 
 ```
 network_generic_trace(trace_type="isolation",
@@ -221,6 +221,19 @@ network_generic_trace(trace_type="isolation",
 ```
 
 Confirm the exact condition shape with the server's response: if it rejects the category condition, report the server error to the user instead of guessing new shapes.
+
+Post-processing (do all of these before answering):
+1. **Remove the starting feature.** Drop every element whose `globalId` equals the starting GlobalID. The user wants the devices around it, not the feature itself.
+2. **Keep only isolating devices** if the result also contains other features (for example with `includeIsolated: true`, or from a named trace):
+   - Preferred: keep elements whose (`networkSourceId`, `assetGroupCode`, `assetTypeCode`) matches a member of the isolating category from `network_get_metadata(section="categories")`.
+   - Fallback when no isolating category exists: keep elements whose source is a device source (`usageType == "esriUNFCUTDevice"` in `network_get_metadata(section="asset_types")`), and say the list was filtered by device source, not by category.
+3. **Group by `globalId`.** A device can appear once per terminal; count it once.
+
+Present the answer by leading with the action: "To isolate {feature}, operate **N devices**:", then list each device with its asset type, asset group, source name and GlobalID. Add one sentence on the boundary: these devices separate the section containing the feature from the rest of the network, and operating them de-energizes (or shuts off) that section.
+
+Troubleshooting for isolation:
+- **0 devices:** the feature may sit directly on a subnetwork controller with no isolating device between. Check whether the start is itself a controller.
+- **Far too many devices:** wrong terminal or wrong tier. Re-check the terminal with `network_device_terminals` and the tier in the response.
 
 ### 3.7 `loops`
 

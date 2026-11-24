@@ -1367,6 +1367,26 @@ class TestNetworkGenericTraceTool:
             await self._call(trace_type="connected", starting_points=[{"global_id": "{a}"}])
 
 
+class TestSkillFiles:
+    def test_every_prompt_skill_file_exists(self) -> None:
+        import inspect
+        import re
+
+        names = re.findall(r'_read_skill\("([^"]+)"\)', inspect.getsource(svc))
+        assert names, "expected prompts that read skill files"
+        missing = [n for n in names if not (svc._SKILLS_DIR / n).exists()]
+        assert missing == []
+
+    def test_archived_isolation_skill_is_not_served(self) -> None:
+        assert not (svc._SKILLS_DIR / "isolation_analysis.md").exists()
+        assert not hasattr(svc, "utility_network_isolation_analysis")
+
+    def test_generic_trace_skill_covers_isolation_post_processing(self) -> None:
+        text = svc._read_skill("generic_trace.md")
+        assert "Remove the starting feature" in text
+        assert "esriUNFCUTDevice" in text
+
+
 class TestGenericTraceSkill:
     @pytest.mark.parametrize("trace_type", sorted(svc._GENERIC_TRACE_TYPES))
     def test_skill_has_a_section_for_every_trace_type(self, trace_type: str) -> None:

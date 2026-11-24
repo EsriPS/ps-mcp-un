@@ -3347,12 +3347,6 @@ def utility_network_downstream_customer_impact() -> str:
     return _read_skill("downstream_customer_impact.md")
 
 
-@utilitynetwork_router.prompt(name="utility_network_isolation_analysis")
-def utility_network_isolation_analysis() -> str:
-    """Guide the AI through identifying isolation devices for a network element."""
-    return _read_skill("isolation_analysis.md")
-
-
 @utilitynetwork_router.prompt(name="utility_network_spatial_impact")
 def utility_network_spatial_impact() -> str:
     """Guide the AI through assessing customer impact within a geographic area."""

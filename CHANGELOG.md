@@ -76,6 +76,11 @@ the form `vX.Y.Z`. `hatch-vcs` derives the package version from that tag.
   `network_isolation_analysis`, and `network_spatial_impact` tools. Replaced by
   prompt-driven skill workflows (`utility_network_downstream_customer_impact`,
   `utility_network_isolation_analysis`, `utility_network_spatial_impact` prompts).
+- **psmcp-router-utilitynetwork**: Removed the `utility_network_isolation_analysis`
+  prompt. Isolation is now covered by section 3.6 of the `utility_network_generic_trace`
+  prompt, which adds the filter barrier Esri requires for isolation traces. The old
+  skill file is kept in `packages/psmcp-router-utilitynetwork/skills_archive/` and is
+  not packaged or served.
 
 ## [0.2.0] - 2026-05-19
 
