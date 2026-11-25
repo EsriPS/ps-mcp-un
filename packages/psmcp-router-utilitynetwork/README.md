@@ -46,10 +46,11 @@ Most tools accept an optional `network_service_url` parameter that overrides `UT
 |------|-------------|
 | `network_named_trace` | Run a saved/named trace configuration from a starting feature. Resolves config by name, uses persisted traceType. |
 | `network_list_named_traces` | List all saved trace configurations with name, globalId, description, traceType, creator. |
-| `network_downstream_trace` | Direct downstream trace. Derives the from-tier from the start feature and applies that tier's subnetwork trace definition automatically. |
-| `network_upstream_trace` | Direct upstream trace. Derives the from-tier from the start feature and applies that tier's subnetwork trace definition automatically. |
-| `network_trace` | Generic trace accepting any trace type: isolation, connected, subnetwork, subnetworkController, loops, shortestPath. Enriches results with resolved names. |
-| `network_generic_trace` | Full `UtilityNetworkServer/trace` request: all trace types (incl. path and circuit), multiple starting points, barriers, custom `traceConfiguration`, selectable result types, `moment`/`out_sr`, result cap and summary. See [Generic trace](#generic-trace). |
+| `utility_network_trace` | The single ad-hoc trace tool. Full `UtilityNetworkServer/trace` request: all trace types (upstream, downstream, isolation, connected, subnetwork, subnetworkController, loops, path, circuit, shortestPath), multiple starting points, barriers, custom `traceConfiguration`, selectable result types, `moment`/`out_sr`, result cap and summary. See [Utility network trace](#utility-network-trace). |
+
+The former `network_downstream_trace`, `network_upstream_trace` and `network_trace` tools are
+commented out in `utility_network_service.py` (kept for reference, not exposed). Use
+`utility_network_trace` with the matching `trace_type` instead.
 
 ### Feature Inspection
 
@@ -72,7 +73,7 @@ skill file with detailed decision logic, filtering rules, and error handling.
 | `utility_network_named_trace_execution` | Discovering and executing named trace configurations |
 | `utility_network_customer_data_discovery` | Discovering customer data sources on the network |
 | `utility_network_address_resolution` | Resolving an address to a network element GlobalID |
-| `utility_network_generic_trace` | Choosing arguments for and running any trace with `network_generic_trace` |
+| `utility_network_trace_guide` | Choosing arguments for and running any trace with `utility_network_trace` |
 | `utility_network_trace_interpretation` | Reading trace results, phases, and troubleshooting |
 
 ### Domain Resolution
@@ -119,10 +120,10 @@ Direction-sensitive traces starting from a multi-terminal device need the correc
    rather than guessing.
 5. Call `network_named_trace` with the chosen `terminal_id`.
 
-### Generic trace
+### Utility network trace
 
-`network_generic_trace` is the single entry point for traces that the saved-trace and
-directional tools cannot express. It maps onto the
+`utility_network_trace` is the single tool for every trace that is not a saved (named)
+trace. It maps onto the
 [Trace (UtilityNetworkServer)](https://developers.arcgis.com/rest/services-reference/enterprise/trace-utility-network-server/)
 REST operation.
 
@@ -144,7 +145,7 @@ REST operation.
 #### Required inputs by trace type
 
 M = mandatory, O = optional, X = rejected or unused. The agent skill
-([`skills/generic_trace.md`](src/psmcp_router_utilitynetwork/skills/generic_trace.md))
+([`skills/utilitynetwork_trace.md`](src/psmcp_router_utilitynetwork/skills/utilitynetwork_trace.md))
 also lists which tool supplies each value.
 
 | Trace type | Starting points | Barriers | Stopping points | Also needed |
@@ -224,11 +225,10 @@ Shortest route between two devices (Enterprise 12.1 or later):
 | Need | Tool |
 |------|------|
 | A saved configuration matches | `network_named_trace` |
-| Simple directional trace from one feature | `network_downstream_trace`, `network_upstream_trace` |
-| Everything else | `network_generic_trace` |
+| Everything else, including simple upstream/downstream | `utility_network_trace` |
 
-The agent-facing guide is the `utility_network_generic_trace` prompt, served from
-[`skills/generic_trace.md`](src/psmcp_router_utilitynetwork/skills/generic_trace.md). It
+The agent-facing guide is the `utility_network_trace_guide` prompt, served from
+[`skills/utilitynetwork_trace.md`](src/psmcp_router_utilitynetwork/skills/utilitynetwork_trace.md). It
 walks an agent through the pre-flight tools (`network_initialize_session`,
 `network_list_named_traces`, `network_device_terminals`, `network_get_metadata`), the
 inputs each trace type needs, the configuration keys and condition format, result type
@@ -248,8 +248,8 @@ lifetime until:
 - **Named traces** (`network_named_trace`) use a server-saved configuration that
   encapsulates barriers, conditions, output filters, and result types. Preferred when
   a matching saved config exists.
-- **Direct traces** (`network_downstream_trace`, `network_upstream_trace`) hit the
-  trace endpoint without a named config. The from-tier is derived from the start
+- **Ad-hoc traces** (`utility_network_trace`) hit the trace endpoint without a named
+  config. For subnetwork-based trace types the from-tier is derived from the start
   feature, and that tier's subnetwork trace definition (its condition barriers and
   inclusion flags) is applied automatically so the trace stops at subnetwork
   controllers. `domain_network_name` and `tier_name` are optional hints/
@@ -277,9 +277,6 @@ lifetime until:
      so the caller can choose. If the feature is neither a member nor configured-
      valid in any tier, it returns `tier_no_membership`. In all these cases the tool
      declines to run an invalid trace rather than guessing.
-- **Generic trace** (`network_trace`) handles all other trace types — isolation,
-  connected, subnetwork, subnetworkController, loops, shortestPath — with enriched
-  element names in the output.
 
 ## Dependencies
 

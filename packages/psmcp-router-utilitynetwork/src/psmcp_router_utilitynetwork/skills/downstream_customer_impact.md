@@ -36,17 +36,16 @@ If no named trace matches: proceed to Step 3.
 
 ## Step 3: Run Downstream Trace
 
-Call `network_downstream_trace(starting_global_id="{GlobalID}", terminal_id={id})`.
-
-Or if you need domain/tier scoping:
+Call:
 ```
-network_downstream_trace(
-    starting_global_id="{GlobalID}",
-    terminal_id={id},
-    domain_network_name="Electric",
-    tier_name="Electric Distribution"
+utility_network_trace(
+    trace_type="downstream",
+    starting_points=[{"global_id": "{GlobalID}", "terminal_id": {id}}],
+    summarize=true
 )
 ```
+
+The tier is derived from the start feature. If the response has `status: "tier_ambiguous"`, ask the user which tier and call again with `tier_name` (and `domain_network_name` if needed). See the `utility_network_trace_guide` prompt, section 3.4, for options such as barriers or a load `functions` override.
 
 The results include enriched elements with `sourceName`, `assetGroupName`, `assetTypeName`.
 

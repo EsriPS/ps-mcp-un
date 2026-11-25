@@ -83,7 +83,7 @@ The goal is to reduce the number of features you trace from. Tracing from every 
 
 **Step ii — If no controller in selection, probe upstream:**
 - Pick the FIRST element from the group
-- Call `network_upstream_trace(starting_global_id="{element_globalid}")`
+- Call `utility_network_trace(trace_type="upstream", starting_points=[{"global_id": "{element_globalid}", "terminal_id": {id}}])`. Get `terminal_id` from `network_device_terminals` (a single terminal reports `recommendedFor: "any"`; on multi-terminal devices use the upstream terminal)
 - In the upstream trace results, check for elements with "controller" in `assetGroupName` or `assetTypeName` (case-insensitive):
   - If a controller is found upstream: use that controller as the sole start point for this subnetwork
   - Move to the next group
@@ -110,13 +110,17 @@ The goal is to reduce the number of features you trace from. Tracing from every 
 
 ## Step 5: Run Downstream Trace from All Start Points
 
-For each pruned start point, run a downstream trace:
+Run one downstream trace per subnetwork group, passing all of that group's pruned start points together:
 
 ```
-network_downstream_trace(starting_global_id="{globalid}")
+utility_network_trace(
+    trace_type="downstream",
+    starting_points=[{"global_id": "{globalid1}", "terminal_id": {id1}}, {"global_id": "{globalid2}", "terminal_id": {id2}}],
+    summarize=true
+)
 ```
 
-**Important:** The server tool only accepts one starting point per call. Run one trace per start point and merge results (collect all unique elements across all traces, deduplicate by `globalId`).
+**Important:** Keep each call to start points from the same subnetwork. The tool derives the tier from the first starting point, so mixing subnetworks in one call can apply the wrong tier definition. Merge the results across calls (collect all unique elements, deduplicate by `globalId`).
 
 If domain/tier scoping was provided, pass it to each trace call.
 

@@ -65,7 +65,7 @@ _ASSOCIATION_TYPE_NAMES: dict[int, str] = {
     3: "structuralAttachment",
 }
 
-# Accepted trace types for the generic trace tool
+# Accepted trace types for the legacy network_trace tool (disabled; see utility_network_trace)
 _ACCEPTED_TRACE_TYPES = frozenset(
     {"isolation", "connected", "subnetwork", "subnetworkController", "loops", "shortestPath"}
 )
@@ -1781,9 +1781,9 @@ def _run_trace_with_subnetwork(
 
 
 # ---------------------------------------------------------------------------
-# Generic trace helpers (full UtilityNetworkServer/trace request surface)
+# Utility network trace helpers (full UtilityNetworkServer/trace request surface)
 # ---------------------------------------------------------------------------
-_GENERIC_TRACE_TYPES = frozenset(
+_UN_TRACE_TYPES = frozenset(
     {
         "connected",
         "subnetwork",
@@ -1803,7 +1803,7 @@ _GENERIC_TRACE_TYPES = frozenset(
 _TIER_AWARE_TRACE_TYPES = frozenset(
     {"upstream", "downstream", "isolation", "subnetwork", "subnetworkController"}
 )
-_GENERIC_RESULT_TYPES = frozenset(
+_UN_RESULT_TYPES = frozenset(
     {"elements", "aggregatedGeometry", "connectivity", "features", "associations", "circuits"}
 )
 _DEFAULT_MAX_ELEMENTS = 500
@@ -1871,16 +1871,16 @@ def _normalize_result_types(
             raise ValueError("Each result type must be a string or an object.")
         entry = {_RESULT_TYPE_KEY_ALIASES.get(str(k), k): v for k, v in item.items()}
         rtype = entry.get("type")
-        if rtype not in _GENERIC_RESULT_TYPES:
+        if rtype not in _UN_RESULT_TYPES:
             raise ValueError(
                 f"Invalid result type '{rtype}'. "
-                f"Accepted values: {', '.join(sorted(_GENERIC_RESULT_TYPES))}."
+                f"Accepted values: {', '.join(sorted(_UN_RESULT_TYPES))}."
             )
         normalized.append(entry)
     return normalized
 
 
-def _validate_generic_trace_request(
+def _validate_trace_request(
     trace_type: str,
     starting_points: list[dict[str, Any]] | None,
     barriers: list[dict[str, Any]] | None,
@@ -1894,10 +1894,10 @@ def _validate_generic_trace_request(
     entries. Raises ``ValueError`` with an actionable message when the request cannot
     be valid for the trace type.
     """
-    if trace_type not in _GENERIC_TRACE_TYPES:
+    if trace_type not in _UN_TRACE_TYPES:
         raise ValueError(
             f"Invalid trace_type '{trace_type}'. "
-            f"Accepted values: {', '.join(sorted(_GENERIC_TRACE_TYPES))}."
+            f"Accepted values: {', '.join(sorted(_UN_TRACE_TYPES))}."
         )
     starts = [
         _normalize_trace_location(p, "startingPoint", f"starting_points[{i}]")
@@ -1938,10 +1938,8 @@ def _validate_generic_trace_request(
     return starts, barrier_locs, stop_locs
 
 
-def _generic_trace_warnings(
-    trace_type: str, stopping_points: list[dict[str, Any]] | None
-) -> list[str]:
-    """Non-fatal advice attached to a generic trace response."""
+def _trace_warnings(trace_type: str, stopping_points: list[dict[str, Any]] | None) -> list[str]:
+    """Non-fatal advice attached to a utility network trace response."""
     warnings: list[str] = []
     if trace_type == "shortestPath":
         warnings.append(
@@ -1957,7 +1955,7 @@ def _generic_trace_warnings(
     return warnings
 
 
-def _generic_trace_configuration(
+def _build_trace_configuration(
     trace_configuration: dict[str, Any] | None,
     domain_network_name: str | None,
     tier_name: str | None,
@@ -2043,14 +2041,14 @@ def _tier_default_configuration(
         return config, {"resolvedBy": resolved_by, "tierName": resolved_tier}, None
     except Exception as exc:
         logger.warning(
-            "Could not resolve tier definition for generic trace (%s); "
+            "Could not resolve tier definition for utility network trace (%s); "
             "using the supplied configuration/hints.",
             exc,
         )
         return {}, None, None
 
 
-def run_generic_trace(
+def run_utility_network_trace(
     gis: GIS,
     network_service_url: str,
     trace_type: str,
@@ -2079,10 +2077,10 @@ def run_generic_trace(
 
     A ``TIER_AMBIGUOUS`` / ``TIER_NO_MEMBERSHIP`` resolution is returned unchanged when
     the tier cannot be resolved. Raises ``ValueError`` for requests that cannot be valid
-    (see ``_validate_generic_trace_request``), including an isolation trace with no
+    (see ``_validate_trace_request``), including an isolation trace with no
     filter barrier.
     """
-    starts, barrier_locs, stop_locs = _validate_generic_trace_request(
+    starts, barrier_locs, stop_locs = _validate_trace_request(
         trace_type, starting_points, barriers, subnetwork_name, stopping_points, trace_configuration
     )
     rest_result_types = _normalize_result_types(result_types)
@@ -2099,7 +2097,7 @@ def run_generic_trace(
             return early_result
         if tier_config:
             base = tier_config
-    configuration = _generic_trace_configuration(
+    configuration = _build_trace_configuration(
         base,
         domain_network_name,
         tier_name,
@@ -2118,7 +2116,7 @@ def run_generic_trace(
         )
 
     logger.info(
-        "Running generic %s trace (%d starting points, %d barriers, %d stopping points, results=%s)",
+        "Running utility network %s trace (%d starting points, %d barriers, %d stopping points, results=%s)",
         trace_type,
         len(starts),
         len(barrier_locs),
@@ -2138,7 +2136,9 @@ def run_generic_trace(
 
     raw = _do_trace()
     if raw.get("error", {}).get("extendedCode") == _NO_STARTING_POINTS:
-        logger.warning("Generic trace found no starting points; validating topology and retrying.")
+        logger.warning(
+            "Utility network trace found no starting points; validating topology and retrying."
+        )
         _validate_topology(un_manager, network_service_url, gis)
         raw = _do_trace()
     if isinstance(raw, dict) and tier_info is not None:
@@ -2785,106 +2785,110 @@ async def network_refresh_metadata(
     }
 
 
-@utilitynetwork_router.tool(name="network_downstream_trace")
-async def network_downstream_trace(
-    starting_global_id: str,
-    network_service_url: str | None = None,
-    domain_network_name: str | None = None,
-    tier_name: str | None = None,
-    terminal_id: int | None = None,
-    percent_along: float | None = None,
-    token: str | None = None,
-) -> dict[str, Any]:
-    """Execute a downstream trace on the utility network from a starting feature global ID.
+# DISABLED: 'network_downstream_trace' is no longer exposed as an MCP tool.
+# Use utility_network_trace(trace_type="downstream", ...) instead. Kept for reference; do not delete.
+# @utilitynetwork_router.tool(name="network_downstream_trace")
+# async def network_downstream_trace(
+#     starting_global_id: str,
+#     network_service_url: str | None = None,
+#     domain_network_name: str | None = None,
+#     tier_name: str | None = None,
+#     terminal_id: int | None = None,
+#     percent_along: float | None = None,
+#     token: str | None = None,
+# ) -> dict[str, Any]:
+#     """Execute a downstream trace on the utility network from a starting feature global ID.
+#
+#     Prerequisite: call ``network_initialize_session`` first if not already done this session.
+#
+#     Calls the UN trace REST endpoint directly with traceType="downstream".
+#     No named/persisted trace configuration is used.
+#
+#     The from-tier is derived from the start feature's subnetwork membership, and
+#     that tier's subnetwork trace definition (condition barriers + inclusion flags)
+#     is applied automatically so the trace stops at barriers and subnetwork controllers.
+#
+#     - For junction features, supply terminal_id to identify the correct terminal.
+#     - For edge features, supply percent_along (0.0-1.0) to locate the starting
+#       point along the edge.
+#     - Omitting both works when the feature has a single terminal.
+#     - domain_network_name and tier_name are optional hints. In a partitioned
+#       domain the feature resolves to a single tier, so they can be omitted. In a
+#       hierarchical domain where the feature belongs to several tiers, supply
+#       tier_name to disambiguate; if it is still ambiguous (or the feature is not a
+#       subnetwork member) a structured result is returned instead of a trace.
+#     """
+#     service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
+#     if not service_url:
+#         raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
+#     gis = _connect_gis(token)
+#     raw = await asyncio.to_thread(
+#         run_trace,
+#         gis,
+#         service_url,
+#         "downstream",
+#         starting_global_id,
+#         domain_network_name,
+#         tier_name,
+#         terminal_id,
+#         percent_along,
+#         service_url,
+#         token,
+#     )
+#     return _trace_response("downstream", service_url, starting_global_id, raw)
 
-    Prerequisite: call ``network_initialize_session`` first if not already done this session.
 
-    Calls the UN trace REST endpoint directly with traceType="downstream".
-    No named/persisted trace configuration is used.
-
-    The from-tier is derived from the start feature's subnetwork membership, and
-    that tier's subnetwork trace definition (condition barriers + inclusion flags)
-    is applied automatically so the trace stops at barriers and subnetwork controllers.
-
-    - For junction features, supply terminal_id to identify the correct terminal.
-    - For edge features, supply percent_along (0.0-1.0) to locate the starting
-      point along the edge.
-    - Omitting both works when the feature has a single terminal.
-    - domain_network_name and tier_name are optional hints. In a partitioned
-      domain the feature resolves to a single tier, so they can be omitted. In a
-      hierarchical domain where the feature belongs to several tiers, supply
-      tier_name to disambiguate; if it is still ambiguous (or the feature is not a
-      subnetwork member) a structured result is returned instead of a trace.
-    """
-    service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
-    if not service_url:
-        raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
-    gis = _connect_gis(token)
-    raw = await asyncio.to_thread(
-        run_trace,
-        gis,
-        service_url,
-        "downstream",
-        starting_global_id,
-        domain_network_name,
-        tier_name,
-        terminal_id,
-        percent_along,
-        service_url,
-        token,
-    )
-    return _trace_response("downstream", service_url, starting_global_id, raw)
-
-
-@utilitynetwork_router.tool(name="network_upstream_trace")
-async def network_upstream_trace(
-    starting_global_id: str,
-    network_service_url: str | None = None,
-    domain_network_name: str | None = None,
-    tier_name: str | None = None,
-    terminal_id: int | None = None,
-    percent_along: float | None = None,
-    token: str | None = None,
-) -> dict[str, Any]:
-    """Execute an upstream trace on the utility network from a starting feature global ID.
-
-    Prerequisite: call ``network_initialize_session`` first if not already done this session.
-
-    Calls the UN trace REST endpoint directly with traceType="upstream".
-    No named/persisted trace configuration is used.
-
-    The from-tier is derived from the start feature's subnetwork membership, and
-    that tier's subnetwork trace definition (condition barriers + inclusion flags)
-    is applied automatically so the trace stops at subnetwork controllers.
-
-    - For junction features, supply terminal_id to identify the correct terminal.
-    - For edge features, supply percent_along (0.0-1.0) to locate the starting
-      point along the edge.
-    - Omitting both works when the feature has a single terminal.
-    - domain_network_name and tier_name are optional hints. In a partitioned
-      domain the feature resolves to a single tier, so they can be omitted. In a
-      hierarchical domain where the feature belongs to several tiers, supply
-      tier_name to disambiguate; if it is still ambiguous (or the feature is not a
-      subnetwork member) a structured result is returned instead of a trace.
-    """
-    service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
-    if not service_url:
-        raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
-    gis = _connect_gis(token)
-    raw = await asyncio.to_thread(
-        run_trace,
-        gis,
-        service_url,
-        "upstream",
-        starting_global_id,
-        domain_network_name,
-        tier_name,
-        terminal_id,
-        percent_along,
-        service_url,
-        token,
-    )
-    return _trace_response("upstream", service_url, starting_global_id, raw)
+# DISABLED: 'network_upstream_trace' is no longer exposed as an MCP tool.
+# Use utility_network_trace(trace_type="upstream", ...) instead. Kept for reference; do not delete.
+# @utilitynetwork_router.tool(name="network_upstream_trace")
+# async def network_upstream_trace(
+#     starting_global_id: str,
+#     network_service_url: str | None = None,
+#     domain_network_name: str | None = None,
+#     tier_name: str | None = None,
+#     terminal_id: int | None = None,
+#     percent_along: float | None = None,
+#     token: str | None = None,
+# ) -> dict[str, Any]:
+#     """Execute an upstream trace on the utility network from a starting feature global ID.
+#
+#     Prerequisite: call ``network_initialize_session`` first if not already done this session.
+#
+#     Calls the UN trace REST endpoint directly with traceType="upstream".
+#     No named/persisted trace configuration is used.
+#
+#     The from-tier is derived from the start feature's subnetwork membership, and
+#     that tier's subnetwork trace definition (condition barriers + inclusion flags)
+#     is applied automatically so the trace stops at subnetwork controllers.
+#
+#     - For junction features, supply terminal_id to identify the correct terminal.
+#     - For edge features, supply percent_along (0.0-1.0) to locate the starting
+#       point along the edge.
+#     - Omitting both works when the feature has a single terminal.
+#     - domain_network_name and tier_name are optional hints. In a partitioned
+#       domain the feature resolves to a single tier, so they can be omitted. In a
+#       hierarchical domain where the feature belongs to several tiers, supply
+#       tier_name to disambiguate; if it is still ambiguous (or the feature is not a
+#       subnetwork member) a structured result is returned instead of a trace.
+#     """
+#     service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
+#     if not service_url:
+#         raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
+#     gis = _connect_gis(token)
+#     raw = await asyncio.to_thread(
+#         run_trace,
+#         gis,
+#         service_url,
+#         "upstream",
+#         starting_global_id,
+#         domain_network_name,
+#         tier_name,
+#         terminal_id,
+#         percent_along,
+#         service_url,
+#         token,
+#     )
+#     return _trace_response("upstream", service_url, starting_global_id, raw)
 
 
 @utilitynetwork_router.tool(name="network_named_trace")
@@ -3020,77 +3024,79 @@ async def query_customer_data(
     return await asyncio.to_thread(get_customer_data, gis, service_url, global_ids, meter_ids)
 
 
-@utilitynetwork_router.tool(name="network_trace")
-async def network_trace(
-    starting_global_id: str,
-    trace_type: str,
-    network_service_url: str | None = None,
-    domain_network_name: str | None = None,
-    tier_name: str | None = None,
-    terminal_id: int | None = None,
-    percent_along: float | None = None,
-    subnetwork_name: str | None = None,
-    token: str | None = None,
-) -> dict[str, Any]:
-    """Execute any type of utility network trace.
+# DISABLED: 'network_trace' is no longer exposed as an MCP tool.
+# Use utility_network_trace(trace_type=..., ...) instead. Kept for reference; do not delete.
+# @utilitynetwork_router.tool(name="network_trace")
+# async def network_trace(
+#     starting_global_id: str,
+#     trace_type: str,
+#     network_service_url: str | None = None,
+#     domain_network_name: str | None = None,
+#     tier_name: str | None = None,
+#     terminal_id: int | None = None,
+#     percent_along: float | None = None,
+#     subnetwork_name: str | None = None,
+#     token: str | None = None,
+# ) -> dict[str, Any]:
+#     """Execute any type of utility network trace.
+#
+#     Prerequisite: call ``network_initialize_session`` first if not already done this session.
+#
+#     Use this tool for trace types not covered by the dedicated downstream/upstream
+#     tools: isolation, connected, subnetwork, subnetworkController, loops, shortestPath.
+#
+#     Each element in the trace results is enriched with resolved names:
+#     sourceName, assetGroupName, assetTypeName (from the cached data element).
+#     """
+#     if trace_type not in _ACCEPTED_TRACE_TYPES:
+#         return {
+#             "error": (
+#                 f"Invalid trace_type '{trace_type}'. "
+#                 f"Accepted values: {', '.join(sorted(_ACCEPTED_TRACE_TYPES))}."
+#             ),
+#         }
+#
+#     service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
+#     if not service_url:
+#         raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
+#
+#     gis = _connect_gis(token)
+#
+#     if trace_type == "subnetwork" and subnetwork_name:
+#         raw = await asyncio.to_thread(
+#             _run_trace_with_subnetwork,
+#             gis,
+#             service_url,
+#             trace_type,
+#             starting_global_id,
+#             domain_network_name,
+#             tier_name,
+#             terminal_id,
+#             percent_along,
+#             subnetwork_name,
+#         )
+#     else:
+#         raw = await asyncio.to_thread(
+#             run_trace,
+#             gis,
+#             service_url,
+#             trace_type,
+#             starting_global_id,
+#             domain_network_name,
+#             tier_name,
+#             terminal_id,
+#             percent_along,
+#             service_url,
+#             token,
+#         )
+#
+#     raw = _enrich_trace_elements(raw, service_url, token)
+#
+#     return _trace_response(trace_type, service_url, starting_global_id, raw)
 
-    Prerequisite: call ``network_initialize_session`` first if not already done this session.
 
-    Use this tool for trace types not covered by the dedicated downstream/upstream
-    tools: isolation, connected, subnetwork, subnetworkController, loops, shortestPath.
-
-    Each element in the trace results is enriched with resolved names:
-    sourceName, assetGroupName, assetTypeName (from the cached data element).
-    """
-    if trace_type not in _ACCEPTED_TRACE_TYPES:
-        return {
-            "error": (
-                f"Invalid trace_type '{trace_type}'. "
-                f"Accepted values: {', '.join(sorted(_ACCEPTED_TRACE_TYPES))}."
-            ),
-        }
-
-    service_url = network_service_url or os.getenv("UTILITY_NETWORK_URL")
-    if not service_url:
-        raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
-
-    gis = _connect_gis(token)
-
-    if trace_type == "subnetwork" and subnetwork_name:
-        raw = await asyncio.to_thread(
-            _run_trace_with_subnetwork,
-            gis,
-            service_url,
-            trace_type,
-            starting_global_id,
-            domain_network_name,
-            tier_name,
-            terminal_id,
-            percent_along,
-            subnetwork_name,
-        )
-    else:
-        raw = await asyncio.to_thread(
-            run_trace,
-            gis,
-            service_url,
-            trace_type,
-            starting_global_id,
-            domain_network_name,
-            tier_name,
-            terminal_id,
-            percent_along,
-            service_url,
-            token,
-        )
-
-    raw = _enrich_trace_elements(raw, service_url, token)
-
-    return _trace_response(trace_type, service_url, starting_global_id, raw)
-
-
-@utilitynetwork_router.tool(name="network_generic_trace")
-async def network_generic_trace(
+@utilitynetwork_router.tool(name="utility_network_trace")
+async def utility_network_trace(
     trace_type: str,
     starting_points: list[dict[str, Any]] | None = None,
     barriers: list[dict[str, Any]] | None = None,
@@ -3113,7 +3119,7 @@ async def network_generic_trace(
     """Run any utility network trace with the full UtilityNetworkServer ``trace`` options.
 
     Prerequisite: call ``network_initialize_session`` first if not already done this session.
-    ALWAYS read the ``utility_network_generic_trace`` prompt first. It lists, per trace
+    ALWAYS read the ``utility_network_trace_guide`` prompt first. It lists, per trace
     type, the mandatory and optional arguments and which tools to call to obtain them.
 
     trace_type (mandatory): connected | subnetwork | subnetworkController | upstream |
@@ -3150,7 +3156,7 @@ async def network_generic_trace(
         raise ValueError("Provide network_service_url or set UTILITY_NETWORK_URL.")
     try:
         # Validate before opening a GIS connection so bad input fails fast.
-        _validate_generic_trace_request(
+        _validate_trace_request(
             trace_type,
             starting_points,
             barriers,
@@ -3165,7 +3171,7 @@ async def network_generic_trace(
     gis = _connect_gis(token)
     try:
         raw = await asyncio.to_thread(
-            run_generic_trace,
+            run_utility_network_trace,
             gis,
             service_url,
             trace_type,
@@ -3205,7 +3211,7 @@ async def network_generic_trace(
         response["summary"] = summary
     if isinstance(results, dict):
         _limit_trace_elements(response, max_elements)
-    warnings = _generic_trace_warnings(trace_type, stopping_points)
+    warnings = _trace_warnings(trace_type, stopping_points)
     if warnings:
         response["warnings"] = warnings
     return response
@@ -3371,10 +3377,10 @@ def utility_network_address_resolution() -> str:
     return _read_skill("address_to_network_element.md")
 
 
-@utilitynetwork_router.prompt(name="utility_network_generic_trace")
-def utility_network_generic_trace() -> str:
-    """Guide the AI through choosing and running any trace with network_generic_trace."""
-    return _read_skill("generic_trace.md")
+@utilitynetwork_router.prompt(name="utility_network_trace_guide")
+def utility_network_trace_guide() -> str:
+    """Guide the AI through choosing and running any trace with utility_network_trace."""
+    return _read_skill("utilitynetwork_trace.md")
 
 
 @utilitynetwork_router.prompt(name="utility_network_trace_interpretation")

@@ -140,7 +140,7 @@ Controllers appear in trace results as elements with special significance:
 The `network_device_terminals` tool returns `subnetworkNames` which links a feature to its subnetwork. The controller for that subnetwork can be found via:
 
 ```
-network_trace(starting_global_id="...", trace_type="subnetworkController")
+utility_network_trace(trace_type="subnetworkController", starting_points=[{"global_id": "...", "terminal_id": ...}])
 ```
 
 ### Why Controllers Matter

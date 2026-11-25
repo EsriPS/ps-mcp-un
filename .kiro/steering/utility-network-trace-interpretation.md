@@ -54,9 +54,7 @@ Function results are only present when running a named trace that has functions 
 
 | Tool | Returns |
 |------|---------|
-| `network_trace` | Enriched: elements include `sourceName`, `assetGroupName`, `assetTypeName` — no manual mapping needed |
-| `network_downstream_trace` | Enriched |
-| `network_upstream_trace` | Enriched |
+| `utility_network_trace` | Enriched: elements include `sourceName`, `assetGroupName`, `assetTypeName` — no manual mapping needed. Also returns `globalFunctionResults` when you pass `functions` |
 | `network_named_trace` | Raw: only `elements` + `sourceMapping` + `globalFunctionResults` — you must use `sourceMapping` to interpret source IDs |
 
 When working with `network_named_trace` results, cross-reference `networkSourceId` against `sourceMapping` to identify what layer each element belongs to. For full name resolution (asset group/type names), call `network_get_metadata(section="asset_types")` and look up codes.

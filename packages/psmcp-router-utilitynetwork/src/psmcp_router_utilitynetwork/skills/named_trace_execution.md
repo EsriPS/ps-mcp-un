@@ -46,7 +46,5 @@ Use named traces when the workflow requires barriers, functions (load sums, cust
 ## Fallback
 
 If NO named trace matches the user's intent:
-- For a simple directional trace from one feature: `network_downstream_trace` or `network_upstream_trace`
-- For anything else, including barriers, functions, output filters, condition barriers or isolation: `network_generic_trace`. Follow the `utility_network_generic_trace` prompt
-- The two directional tools do NOT support barriers, functions, or propagators
+- Use `utility_network_trace` for every other trace, simple or complex (directional, isolation, connected, subnetwork, loops, path, with barriers, functions or output filters). Follow the `utility_network_trace_guide` prompt
 - If complex config is needed but no named trace exists: recommend the GIS admin publish one

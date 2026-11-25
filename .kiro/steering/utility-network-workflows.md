@@ -14,14 +14,14 @@ This steering file teaches you how to reason about utility network workflows, se
 |----------------------|------------|
 | "What is the total connected downstream load?" | `network_list_named_traces` → match load trace → `network_named_trace` |
 | "List all downstream customers" / "Who is affected by this outage?" | Use prompt `utility_network_downstream_customer_impact` (multi-step: terminal → trace → filter → resolve) |
-| "What isolation devices must be operated?" / "How do I isolate this?" | Use prompt `utility_network_generic_trace`, section 3.6 (`network_generic_trace` with `trace_type="isolation"` and a filter barrier, then filter and present the devices) |
+| "What isolation devices must be operated?" / "How do I isolate this?" | Use prompt `utility_network_trace_guide`, section 3.6 (`utility_network_trace` with `trace_type="isolation"` and a filter barrier, then filter and present the devices) |
 | "Given this flood/fire area, what customers are affected?" | Use prompt `utility_network_spatial_impact` (multi-step: spatial query → minimize → trace → resolve) |
-| "Trace upstream from this meter to the source" | `network_upstream_trace` |
+| "Trace upstream from this meter to the source" | `utility_network_trace` with `trace_type="upstream"` |
 | "What is the load at [address]?" | Probe data model → resolve address to service point → trace |
 | "811 call-before-you-dig" / "What assets near this dig site?" | Use prompt `utility_network_spatial_impact` (geocode → buffer → spatial query → trace) |
-| "What is connected to this device?" | `network_trace` with `trace_type="connected"` |
-| "Find loops in the network" | `network_trace` with `trace_type="loops"` |
-| "What subnetwork does this belong to?" | `network_trace` with `trace_type="subnetwork"` + `subnetwork_name` |
+| "What is connected to this device?" | `utility_network_trace` with `trace_type="connected"` |
+| "Find loops in the network" | `utility_network_trace` with `trace_type="loops"` (one starting point) |
+| "What subnetwork does this belong to?" | `utility_network_trace` with `trace_type="subnetwork"` + `subnetwork_name` |
 
 ### Address-Based Workflows
 
@@ -67,10 +67,9 @@ Run the confirmed trace via `network_named_trace` with the correct starting Glob
 
 ### 5. Fallback
 
-Only fall back to direct trace tools when NO named trace matches the user's intent:
-- `network_downstream_trace` / `network_upstream_trace` — for simple directional traces
-- `network_trace` — for isolation, connected, subnetwork, loops, etc.
-- These direct traces do NOT include barriers, functions, propagators, or output filters
+Only fall back to an ad-hoc trace when NO named trace matches the user's intent:
+- `utility_network_trace` — every trace type (upstream, downstream, isolation, connected, subnetwork, loops, path, ...)
+- It supports barriers, functions, propagators and output filters through `configuration_overrides`, but you must supply the names yourself. Follow the `utility_network_trace_guide` prompt
 
 ### Why Named Traces Are Preferred
 
@@ -212,21 +211,8 @@ Use `network_named_trace` when the workflow requires:
 
 Named traces are pre-configured on the server by utility engineers.
 
-### `network_trace` (Generic — Simple Traces)
-
-Use for simple traces that only need:
-- A trace type (isolation, connected, subnetwork, subnetworkController, loops)
-- A starting point (GlobalID + optional terminal)
-- Optional domain network / tier scoping
-
-No barriers, functions, propagators, or output filters are available via this tool.
-
-### `network_generic_trace` (Full Trace Request)
-Use when the request needs more than `network_trace` offers: several starting points, barriers, a custom `traceConfiguration` (condition barriers, functions, output conditions, propagators, inclusion flags), a chosen set of result types (`elements`, `features`, `connectivity`, `aggregatedGeometry`, `associations`), `shortestPath`, or a subnetwork traced by name. It applies the tier definition (upstream, downstream, isolation, subnetwork, subnetworkController) when no configuration is given, and also covers `path` and `circuit`. Prefer a named trace if one matches. Read the `utility_network_generic_trace` prompt first: it lists the mandatory and optional inputs for each trace type and the tool that supplies each one.
-
-### `network_downstream_trace` / `network_upstream_trace` (Simple Directional)
-
-Use for straightforward directional traces without complex configuration. Same capabilities as `network_trace` with `trace_type="downstream"` or `"upstream"`, but with dedicated discoverability.
+### `utility_network_trace` (All Ad-hoc Traces)
+Use for every trace that is not a named trace: simple directional traces from one feature, several starting points, barriers, a custom `traceConfiguration` (condition barriers, functions, output conditions, propagators, inclusion flags), a chosen set of result types (`elements`, `features`, `connectivity`, `aggregatedGeometry`, `associations`), `shortestPath`, or a subnetwork traced by name. It applies the tier definition (upstream, downstream, isolation, subnetwork, subnetworkController) when no configuration is given, and also covers `path` and `circuit`. Prefer a named trace if one matches. Read the `utility_network_trace_guide` prompt first: it lists the mandatory and optional inputs for each trace type and the tool that supplies each one.
 
 ### When No Named Trace Exists and Complex Config is Needed
 

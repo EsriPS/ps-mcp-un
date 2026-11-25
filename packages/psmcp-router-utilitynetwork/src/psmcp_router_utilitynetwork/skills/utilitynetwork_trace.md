@@ -1,12 +1,12 @@
 ---
-name: generic-trace
-description: Run any utility-network trace with network_generic_trace. Lists, for every trace type, the mandatory and optional parameters and the tools to call first to obtain each value.
+name: utilitynetwork-trace
+description: Run any utility-network trace with utility_network_trace. Lists, for every trace type, the mandatory and optional parameters and the tools to call first to obtain each value.
 tags:
   - agent-runtime
 ---
-# Generic Trace Workflow
+# Utility Network Trace Workflow
 
-You are running an ad-hoc trace with `network_generic_trace`, which sends a full `UtilityNetworkServer/trace` request. A trace that is missing a required input fails or returns nothing useful, so gather every required value **before** calling the tool. This guide tells you, for each trace type, what is mandatory, what is optional, and which tool provides each value.
+You are running a trace with `utility_network_trace`, which sends a full `UtilityNetworkServer/trace` request. A trace that is missing a required input fails or returns nothing useful, so gather every required value **before** calling the tool. This guide tells you, for each trace type, what is mandatory, what is optional, and which tool provides each value.
 
 Sources: Esri REST `trace` operation, ArcGIS Pro "Utility network trace types" and "Configure a trace", and the ArcGIS API for Python trace configuration reference.
 
@@ -15,8 +15,7 @@ Sources: Esri REST `trace` operation, ArcGIS Pro "Utility network trace types" a
 | Situation | Tool |
 |-----------|------|
 | A saved (named) trace matches the request | `network_named_trace` (see `utility_network_named_trace_execution`). Preferred, because engineers encode barriers, functions and filters in it. |
-| Plain downstream or upstream from one feature, nothing custom | `network_downstream_trace` / `network_upstream_trace` |
-| Anything else: several starting points, barriers, stopping points, custom configuration, other result types, path, circuit, loops, subnetwork by name | `network_generic_trace` (this guide) |
+| Every other trace: any trace type, one or several starting points, barriers, stopping points, custom configuration, any result type | `utility_network_trace` (this guide) |
 
 ## 1. Pre-flight Checklist (every trace)
 
@@ -45,7 +44,7 @@ Rules for step 3 and 4:
 Single-terminal features include service points, meters, line ends, junctions and most connection points. Multi-terminal features are typically transformers, switches, fuses, breakers and reclosers.
 - A location missing a required property (terminal for a junction, percent for an edge) is silently ignored by the server, which can produce "no starting points".
 
-## 2. Parameter Reference for `network_generic_trace`
+## 2. Parameter Reference for `utility_network_trace`
 
 | Parameter | Type | Meaning | How to obtain |
 |-----------|------|---------|---------------|
@@ -112,7 +111,7 @@ Prerequisites: step 3 (GlobalID), step 4 (terminal for each junction, or an edge
 Warning: with no barriers or conditions a connected trace can cover the whole network and return a very large result. Add a barrier, a condition barrier, or `summarize=true` with a small `max_elements`.
 
 ```
-network_generic_trace(trace_type="connected",
+utility_network_trace(trace_type="connected",
   starting_points=[{"global_id": "{G}", "terminal_id": 1}],
   summarize=true, max_elements=100)
 ```
@@ -133,7 +132,7 @@ Prerequisites:
 3. If the subnetwork is dirty, tell the user: results may be stale until the subnetwork is updated.
 
 ```
-network_generic_trace(trace_type="subnetwork",
+utility_network_trace(trace_type="subnetwork",
   subnetwork_name="RMT001",
   domain_network_name="ElectricDistribution", tier_name="Medium Voltage Radial",
   result_types=["elements"], summarize=true)
@@ -171,7 +170,7 @@ Prerequisites:
 Alternative: `use_digitized_direction` in `configuration_overrides` (`{"useDigitizedDirection": true}`) determines flow from the line's digitized direction instead of controllers. Then the domain network, tier and target tier are ignored and propagators are ignored. Use it only when the network models flow by digitized direction. It is the only way to run a directional trace on a telecom domain network.
 
 ```
-network_generic_trace(trace_type="downstream",
+utility_network_trace(trace_type="downstream",
   starting_points=[{"global_id": "{G}", "terminal_id": 2}],
   barriers=[{"global_id": "{B}", "terminal_id": 1}],
   result_types=["elements"], summarize=true)
@@ -212,7 +211,7 @@ Where the filter barrier comes from, in order:
 Before running it, check `network_list_named_traces()` for an isolation trace (for example "Distribution Isolation"). If one matches and the user confirms, use `network_named_trace` instead, then continue with the post-processing below.
 
 ```
-network_generic_trace(trace_type="isolation",
+utility_network_trace(trace_type="isolation",
   starting_points=[{"global_id": "{G}", "terminal_id": 1}],
   configuration_overrides={"filterBarriers": [
     {"name": "Isolating", "type": "category", "operator": "equal", "value": "1",
@@ -265,7 +264,7 @@ Prerequisites:
 The returned paths are not ordered. When `numPaths` is above 1 only the first is guaranteed to be the shortest.
 
 ```
-network_generic_trace(trace_type="path",
+utility_network_trace(trace_type="path",
   starting_points=[{"global_id": "{A}", "terminal_id": 1}],
   stopping_points=[{"global_id": "{Z}", "terminal_id": 1}],
   configuration_overrides={"shortestPathNetworkAttributeName": "Shape length", "numPaths": 1},
@@ -430,7 +429,7 @@ ecommendedFor) matches the trace |
 
 ## 9. Rules for the Agent
 
-1. Always call `network_initialize_session` first, and read this guide before the first `network_generic_trace` of a task.
+1. Always call `network_initialize_session` first, and read this guide before the first `utility_network_trace` of a task.
 2. Never run a trace until every mandatory input in section 3 for that trace type is known. Ask the user for what you cannot look up.
 3. Never guess a terminal, tier, category name, attribute name or coded value. Look them up with the tools in section 1, or ask.
 4. Prefer a matching named trace. Prefer `configuration_overrides` over `trace_configuration`.

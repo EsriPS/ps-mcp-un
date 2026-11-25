@@ -1,12 +1,14 @@
-"""Tests for the generic utility network trace tool."""
+"""Tests for utility network trace element enrichment (legacy network_trace tests disabled)."""
 
-from unittest.mock import MagicMock, patch
+# MagicMock and pytest were only used by the disabled network_trace tests below.
+# from unittest.mock import MagicMock, patch
+# import pytest
+from unittest.mock import patch
 
-import pytest
 from psmcp_router_utilitynetwork import utility_network_service as traces
 from psmcp_router_utilitynetwork.utility_network_service import (
     _enrich_trace_elements,
-    network_trace,
+    # network_trace,  # DISABLED tool; see utility_network_trace
 )
 
 # ---------------------------------------------------------------------------
@@ -146,116 +148,119 @@ class TestEnrichTraceElements:
         assert elem["assetTypeName"] == ""
 
 
-# ---------------------------------------------------------------------------
-# Tests for network_trace tool
-# ---------------------------------------------------------------------------
-
-
-class TestNetworkTrace:
-    async def test_passes_correct_trace_type(self, monkeypatch) -> None:
-        monkeypatch.setenv("UTILITY_NETWORK_URL", "https://server/FeatureServer")
-
-        mock_gis = MagicMock()
-
-        with (
-            patch.object(traces, "_connect_gis", return_value=mock_gis),
-            patch.object(traces, "run_trace", return_value=MOCK_TRACE_RAW) as mock_run,
-            patch.object(traces, "_get_data_element", return_value=MOCK_DATA_ELEMENT),
-        ):
-            await network_trace(
-                starting_global_id="{START-ID}",
-                trace_type="isolation",
-            )
-
-        mock_run.assert_called_once()
-        call_args = mock_run.call_args
-        # trace_type is the 3rd positional argument
-        assert call_args[0][2] == "isolation"
-
-    async def test_passes_subnetwork_name_in_configuration(self, monkeypatch) -> None:
-        monkeypatch.setenv("UTILITY_NETWORK_URL", "https://server/FeatureServer")
-
-        mock_gis = MagicMock()
-
-        with (
-            patch.object(traces, "_connect_gis", return_value=mock_gis),
-            patch.object(
-                traces, "_run_trace_with_subnetwork", return_value=MOCK_TRACE_RAW
-            ) as mock_sub_trace,
-            patch.object(traces, "_get_data_element", return_value=MOCK_DATA_ELEMENT),
-        ):
-            await network_trace(
-                starting_global_id="{START-ID}",
-                trace_type="subnetwork",
-                subnetwork_name="Sub1",
-            )
-
-        mock_sub_trace.assert_called_once()
-        call_args = mock_sub_trace.call_args
-        # subnetwork_name is the last positional argument
-        assert call_args[0][-1] == "Sub1"
-
-    async def test_returns_error_for_invalid_trace_type(self, monkeypatch) -> None:
-        monkeypatch.setenv("UTILITY_NETWORK_URL", "https://server/FeatureServer")
-
-        result = await network_trace(
-            starting_global_id="{START-ID}",
-            trace_type="invalid",
-        )
-
-        assert "error" in result
-        assert "invalid" in result["error"]
-        # All accepted values should be mentioned
-        assert "isolation" in result["error"]
-        assert "connected" in result["error"]
-        assert "subnetwork" in result["error"]
-
-    async def test_enriches_elements_with_names(self, monkeypatch) -> None:
-        monkeypatch.setenv("UTILITY_NETWORK_URL", "https://server/FeatureServer")
-
-        mock_gis = MagicMock()
-
-        with (
-            patch.object(traces, "_connect_gis", return_value=mock_gis),
-            patch.object(traces, "run_trace", return_value=MOCK_TRACE_RAW),
-            patch.object(traces, "_get_data_element", return_value=MOCK_DATA_ELEMENT),
-        ):
-            result = await network_trace(
-                starting_global_id="{START-ID}",
-                trace_type="connected",
-            )
-
-        elements = result["traceResults"]["elements"]
-        assert len(elements) == 1
-        assert elements[0]["sourceName"] == "ElectricDevice"
-        assert elements[0]["assetGroupName"] == "Medium Voltage Transformer"
-        assert elements[0]["assetTypeName"] == "Three Phase Padmount"
-
-    async def test_raises_without_service_url(self, monkeypatch) -> None:
-        monkeypatch.delenv("UTILITY_NETWORK_URL", raising=False)
-
-        with pytest.raises(ValueError, match="Provide network_service_url"):
-            await network_trace(
-                starting_global_id="{START-ID}",
-                trace_type="isolation",
-            )
-
-    async def test_uses_env_var_fallback(self, monkeypatch) -> None:
-        monkeypatch.setenv("UTILITY_NETWORK_URL", "https://env-server/FeatureServer")
-
-        mock_gis = MagicMock()
-
-        with (
-            patch.object(traces, "_connect_gis", return_value=mock_gis),
-            patch.object(traces, "run_trace", return_value=MOCK_TRACE_RAW) as mock_run,
-            patch.object(traces, "_get_data_element", return_value=MOCK_DATA_ELEMENT),
-        ):
-            result = await network_trace(
-                starting_global_id="{START-ID}",
-                trace_type="isolation",
-            )
-
-        # Verify env var URL was used
-        call_args = mock_run.call_args
-        assert call_args[0][1] == "https://env-server/FeatureServer"
-        assert result["networkServiceUrl"] == "https://env-server/FeatureServer"
+# DISABLED: the network_trace MCP tool is commented out in utility_network_service.py.
+# Its replacement, utility_network_trace, is tested in
+# packages/psmcp-router-utilitynetwork/tests/test_utility_network_service.py. Kept for reference.
+# # ---------------------------------------------------------------------------
+# # Tests for network_trace tool
+# # ---------------------------------------------------------------------------
+#
+#
+# class TestNetworkTrace:
+#     async def test_passes_correct_trace_type(self, monkeypatch) -> None:
+#         monkeypatch.setenv("UTILITY_NETWORK_URL", "https://server/FeatureServer")
+#
+#         mock_gis = MagicMock()
+#
+#         with (
+#             patch.object(traces, "_connect_gis", return_value=mock_gis),
+#             patch.object(traces, "run_trace", return_value=MOCK_TRACE_RAW) as mock_run,
+#             patch.object(traces, "_get_data_element", return_value=MOCK_DATA_ELEMENT),
+#         ):
+#             await network_trace(
+#                 starting_global_id="{START-ID}",
+#                 trace_type="isolation",
+#             )
+#
+#         mock_run.assert_called_once()
+#         call_args = mock_run.call_args
+#         # trace_type is the 3rd positional argument
+#         assert call_args[0][2] == "isolation"
+#
+#     async def test_passes_subnetwork_name_in_configuration(self, monkeypatch) -> None:
+#         monkeypatch.setenv("UTILITY_NETWORK_URL", "https://server/FeatureServer")
+#
+#         mock_gis = MagicMock()
+#
+#         with (
+#             patch.object(traces, "_connect_gis", return_value=mock_gis),
+#             patch.object(
+#                 traces, "_run_trace_with_subnetwork", return_value=MOCK_TRACE_RAW
+#             ) as mock_sub_trace,
+#             patch.object(traces, "_get_data_element", return_value=MOCK_DATA_ELEMENT),
+#         ):
+#             await network_trace(
+#                 starting_global_id="{START-ID}",
+#                 trace_type="subnetwork",
+#                 subnetwork_name="Sub1",
+#             )
+#
+#         mock_sub_trace.assert_called_once()
+#         call_args = mock_sub_trace.call_args
+#         # subnetwork_name is the last positional argument
+#         assert call_args[0][-1] == "Sub1"
+#
+#     async def test_returns_error_for_invalid_trace_type(self, monkeypatch) -> None:
+#         monkeypatch.setenv("UTILITY_NETWORK_URL", "https://server/FeatureServer")
+#
+#         result = await network_trace(
+#             starting_global_id="{START-ID}",
+#             trace_type="invalid",
+#         )
+#
+#         assert "error" in result
+#         assert "invalid" in result["error"]
+#         # All accepted values should be mentioned
+#         assert "isolation" in result["error"]
+#         assert "connected" in result["error"]
+#         assert "subnetwork" in result["error"]
+#
+#     async def test_enriches_elements_with_names(self, monkeypatch) -> None:
+#         monkeypatch.setenv("UTILITY_NETWORK_URL", "https://server/FeatureServer")
+#
+#         mock_gis = MagicMock()
+#
+#         with (
+#             patch.object(traces, "_connect_gis", return_value=mock_gis),
+#             patch.object(traces, "run_trace", return_value=MOCK_TRACE_RAW),
+#             patch.object(traces, "_get_data_element", return_value=MOCK_DATA_ELEMENT),
+#         ):
+#             result = await network_trace(
+#                 starting_global_id="{START-ID}",
+#                 trace_type="connected",
+#             )
+#
+#         elements = result["traceResults"]["elements"]
+#         assert len(elements) == 1
+#         assert elements[0]["sourceName"] == "ElectricDevice"
+#         assert elements[0]["assetGroupName"] == "Medium Voltage Transformer"
+#         assert elements[0]["assetTypeName"] == "Three Phase Padmount"
+#
+#     async def test_raises_without_service_url(self, monkeypatch) -> None:
+#         monkeypatch.delenv("UTILITY_NETWORK_URL", raising=False)
+#
+#         with pytest.raises(ValueError, match="Provide network_service_url"):
+#             await network_trace(
+#                 starting_global_id="{START-ID}",
+#                 trace_type="isolation",
+#             )
+#
+#     async def test_uses_env_var_fallback(self, monkeypatch) -> None:
+#         monkeypatch.setenv("UTILITY_NETWORK_URL", "https://env-server/FeatureServer")
+#
+#         mock_gis = MagicMock()
+#
+#         with (
+#             patch.object(traces, "_connect_gis", return_value=mock_gis),
+#             patch.object(traces, "run_trace", return_value=MOCK_TRACE_RAW) as mock_run,
+#             patch.object(traces, "_get_data_element", return_value=MOCK_DATA_ELEMENT),
+#         ):
+#             result = await network_trace(
+#                 starting_global_id="{START-ID}",
+#                 trace_type="isolation",
+#             )
+#
+#         # Verify env var URL was used
+#         call_args = mock_run.call_args
+#         assert call_args[0][1] == "https://env-server/FeatureServer"
+#         assert result["networkServiceUrl"] == "https://env-server/FeatureServer"

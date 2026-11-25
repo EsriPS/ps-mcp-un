@@ -1072,14 +1072,14 @@ class TestNormalizeResultTypes:
             svc._normalize_result_types([5])  # type: ignore[list-item]
 
 
-class TestValidateGenericTraceRequest:
+class TestValidateTraceRequest:
     def test_invalid_trace_type(self) -> None:
         with pytest.raises(ValueError, match="Invalid trace_type"):
-            svc._validate_generic_trace_request("nope", [{"global_id": "{a}"}], None, None)
+            svc._validate_trace_request("nope", [{"global_id": "{a}"}], None, None)
 
-    @pytest.mark.parametrize("trace_type", sorted(svc._GENERIC_TRACE_TYPES - {"shortestPath"}))
+    @pytest.mark.parametrize("trace_type", sorted(svc._UN_TRACE_TYPES - {"shortestPath"}))
     def test_every_type_accepts_one_start(self, trace_type: str) -> None:
-        starts, barriers, stops = svc._validate_generic_trace_request(
+        starts, barriers, stops = svc._validate_trace_request(
             trace_type, [{"global_id": "{a}"}], [{"global_id": "{b}"}], None
         )
         assert len(starts) == 1 and starts[0]["traceLocationType"] == "startingPoint"
@@ -1088,26 +1088,24 @@ class TestValidateGenericTraceRequest:
 
     def test_no_start_raises(self) -> None:
         with pytest.raises(ValueError, match="At least one starting point"):
-            svc._validate_generic_trace_request("downstream", [], None, None)
+            svc._validate_trace_request("downstream", [], None, None)
 
     def test_shortest_path_needs_two_starts(self) -> None:
         with pytest.raises(ValueError, match="two starting points"):
-            svc._validate_generic_trace_request("shortestPath", [{"global_id": "{a}"}], None, None)
+            svc._validate_trace_request("shortestPath", [{"global_id": "{a}"}], None, None)
 
     def test_subnetwork_by_name_has_empty_locations(self) -> None:
-        starts, barriers, stops = svc._validate_generic_trace_request(
-            "subnetwork", None, None, "RMT001"
-        )
+        starts, barriers, stops = svc._validate_trace_request("subnetwork", None, None, "RMT001")
         assert starts == [] and barriers == [] and stops == []
 
     def test_subnetwork_name_does_not_exempt_other_types(self) -> None:
         with pytest.raises(ValueError, match="At least one starting point"):
-            svc._validate_generic_trace_request("downstream", None, None, "RMT001")
+            svc._validate_trace_request("downstream", None, None, "RMT001")
 
 
-class TestGenericTraceConfiguration:
+class TestBuildTraceConfiguration:
     def test_hints_do_not_override_supplied_config(self) -> None:
-        config = svc._generic_trace_configuration(
+        config = svc._build_trace_configuration(
             {"tierName": "Mine", "includeContainers": True}, "Electric", "Other", "S1"
         )
         assert config == {
@@ -1119,21 +1117,21 @@ class TestGenericTraceConfiguration:
 
     def test_does_not_mutate_input(self) -> None:
         original = {"conditionBarriers": [{"name": "x"}]}
-        svc._generic_trace_configuration(original, "Electric", None, None)
+        svc._build_trace_configuration(original, "Electric", None, None)
         assert original == {"conditionBarriers": [{"name": "x"}]}
 
     def test_empty_when_nothing_supplied(self) -> None:
-        assert svc._generic_trace_configuration(None, None, None, None) == {}
+        assert svc._build_trace_configuration(None, None, None, None) == {}
 
 
-class TestRunGenericTrace:
+class TestRunUtilityNetworkTrace:
     URL = "https://server/arcgis/rest/services/UN/FeatureServer"
 
     def _run(self, **kwargs):
         manager = MagicMock()
         manager.trace.return_value = {"success": True, "traceResults": {"elements": []}}
         with patch.object(svc, "UtilityNetworkManager", return_value=manager):
-            raw = svc.run_generic_trace(MagicMock(), self.URL, **kwargs)
+            raw = svc.run_utility_network_trace(MagicMock(), self.URL, **kwargs)
         return manager, raw
 
     def test_passes_locations_configuration_and_result_types(self) -> None:
@@ -1203,7 +1201,7 @@ class TestRunGenericTrace:
             patch.object(svc, "_get_data_element", return_value={}),
             patch.object(svc, "_resolve_feature_tier", return_value=resolution),
         ):
-            raw = svc.run_generic_trace(
+            raw = svc.run_utility_network_trace(
                 MagicMock(),
                 self.URL,
                 trace_type="upstream",
@@ -1241,7 +1239,7 @@ class TestRunGenericTrace:
             patch.object(svc, "UtilityNetworkManager", return_value=manager),
             patch.object(svc, "_validate_topology") as validate,
         ):
-            raw = svc.run_generic_trace(
+            raw = svc.run_utility_network_trace(
                 MagicMock(),
                 self.URL,
                 trace_type="connected",
@@ -1256,7 +1254,7 @@ class TestRunGenericTrace:
             patch.object(svc, "UtilityNetworkManager") as manager_cls,
             pytest.raises(ValueError),
         ):
-            svc.run_generic_trace(
+            svc.run_utility_network_trace(
                 MagicMock(), self.URL, trace_type="shortestPath", starting_points=[]
             )
         manager_cls.assert_not_called()
@@ -1282,11 +1280,11 @@ class TestLimitTraceElements:
         assert response == {"traceResults": {"features": []}}
 
 
-class TestNetworkGenericTraceTool:
+class TestUtilityNetworkTraceTool:
     URL = "https://server/arcgis/rest/services/UN/FeatureServer"
 
     async def _call(self, **kwargs):
-        return await svc.network_generic_trace(network_service_url=self.URL, **kwargs)
+        return await svc.utility_network_trace(network_service_url=self.URL, **kwargs)
 
     async def test_invalid_input_returns_error_without_connecting(self) -> None:
         with patch.object(svc, "_connect_gis") as connect:
@@ -1306,7 +1304,7 @@ class TestNetworkGenericTraceTool:
         }
         with (
             patch.object(svc, "_connect_gis", return_value=MagicMock()),
-            patch.object(svc, "run_generic_trace", return_value=raw),
+            patch.object(svc, "run_utility_network_trace", return_value=raw),
             patch.object(svc, "_enrich_trace_elements", side_effect=lambda r, *_: r),
         ):
             result = await self._call(
@@ -1335,7 +1333,7 @@ class TestNetworkGenericTraceTool:
         }
         with (
             patch.object(svc, "_connect_gis", return_value=MagicMock()),
-            patch.object(svc, "run_generic_trace", return_value=raw),
+            patch.object(svc, "run_utility_network_trace", return_value=raw),
             patch.object(svc, "_enrich_trace_elements", side_effect=lambda r, *_: r),
         ):
             result = await self._call(
@@ -1350,7 +1348,7 @@ class TestNetworkGenericTraceTool:
         resolution = {"status": svc.TIER_AMBIGUOUS, "memberTiers": ["A", "B"]}
         with (
             patch.object(svc, "_connect_gis", return_value=MagicMock()),
-            patch.object(svc, "run_generic_trace", return_value=resolution),
+            patch.object(svc, "run_utility_network_trace", return_value=resolution),
         ):
             result = await self._call(
                 trace_type="downstream", starting_points=[{"global_id": "{a}"}]
@@ -1361,7 +1359,7 @@ class TestNetworkGenericTraceTool:
         raw = {"success": False, "error": {"extendedCode": -1, "message": "boom"}}
         with (
             patch.object(svc, "_connect_gis", return_value=MagicMock()),
-            patch.object(svc, "run_generic_trace", return_value=raw),
+            patch.object(svc, "run_utility_network_trace", return_value=raw),
             pytest.raises(RuntimeError, match="Trace failed"),
         ):
             await self._call(trace_type="connected", starting_points=[{"global_id": "{a}"}])
@@ -1377,57 +1375,71 @@ class TestSkillFiles:
         missing = [n for n in names if not (svc._SKILLS_DIR / n).exists()]
         assert missing == []
 
+    async def test_only_one_ad_hoc_trace_tool_is_exposed(self) -> None:
+        tools = {t.name for t in await svc.utilitynetwork_router.list_tools()}
+        assert "utility_network_trace" in tools
+        assert "network_named_trace" in tools
+        for disabled in ("network_downstream_trace", "network_upstream_trace", "network_trace"):
+            assert disabled not in tools
+            assert not hasattr(svc, disabled)
+        assert not any("generic" in name for name in tools)
+
+    async def test_trace_guide_prompt_is_exposed(self) -> None:
+        prompts = {p.name for p in await svc.utilitynetwork_router.list_prompts()}
+        assert "utility_network_trace_guide" in prompts
+        assert not any("generic" in name for name in prompts)
+
     def test_archived_isolation_skill_is_not_served(self) -> None:
         assert not (svc._SKILLS_DIR / "isolation_analysis.md").exists()
         assert not hasattr(svc, "utility_network_isolation_analysis")
 
-    def test_generic_trace_skill_covers_isolation_post_processing(self) -> None:
-        text = svc._read_skill("generic_trace.md")
+    def test_trace_skill_covers_isolation_post_processing(self) -> None:
+        text = svc._read_skill("utilitynetwork_trace.md")
         assert "Remove the starting feature" in text
         assert "esriUNFCUTDevice" in text
 
 
-class TestGenericTraceSkill:
-    @pytest.mark.parametrize("trace_type", sorted(svc._GENERIC_TRACE_TYPES))
+class TestUtilityNetworkTraceSkill:
+    @pytest.mark.parametrize("trace_type", sorted(svc._UN_TRACE_TYPES))
     def test_skill_has_a_section_for_every_trace_type(self, trace_type: str) -> None:
-        text = svc._read_skill("generic_trace.md")
+        text = svc._read_skill("utilitynetwork_trace.md")
         assert f"`{trace_type}`" in text
         assert any(
             line.startswith("### 3.") and f"`{trace_type}`" in line for line in text.splitlines()
         )
 
-    @pytest.mark.parametrize("result_type", sorted(svc._GENERIC_RESULT_TYPES))
+    @pytest.mark.parametrize("result_type", sorted(svc._UN_RESULT_TYPES))
     def test_skill_documents_every_result_type(self, result_type: str) -> None:
-        assert f"`{result_type}`" in svc._read_skill("generic_trace.md")
+        assert f"`{result_type}`" in svc._read_skill("utilitynetwork_trace.md")
 
     def test_skill_documents_every_tool_parameter(self) -> None:
         import inspect
 
-        text = svc._read_skill("generic_trace.md")
-        for name in inspect.signature(svc.network_generic_trace).parameters:
+        text = svc._read_skill("utilitynetwork_trace.md")
+        for name in inspect.signature(svc.utility_network_trace).parameters:
             if name in {"network_service_url", "token"}:
                 continue
             assert f"`{name}`" in text, name
 
     def test_prompt_serves_skill_file(self) -> None:
-        text = svc.utility_network_generic_trace()
-        assert "network_generic_trace" in text
+        text = svc.utility_network_trace_guide()
+        assert "utility_network_trace" in text
         assert text.startswith("---")
 
 
 class TestTraceTypeRules:
-    """Mandatory/optional input rules per trace type (mirrors skills/generic_trace.md)."""
+    """Mandatory/optional input rules per trace type (mirrors skills/utilitynetwork_trace.md)."""
 
     START: ClassVar[list[dict[str, Any]]] = [{"global_id": "{a}"}]
 
     def test_loops_rejects_multiple_starting_points(self) -> None:
         with pytest.raises(ValueError, match="single starting point"):
-            svc._validate_generic_trace_request(
+            svc._validate_trace_request(
                 "loops", [{"global_id": "{a}"}, {"global_id": "{b}"}], None, None
             )
 
     def test_path_accepts_stopping_points(self) -> None:
-        _, _, stops = svc._validate_generic_trace_request(
+        _, _, stops = svc._validate_trace_request(
             "path", self.START, None, None, [{"global_id": "{z}", "terminal_id": 1}]
         )
         assert stops == [{"traceLocationType": "stoppingPoint", "globalId": "{z}", "terminalId": 1}]
@@ -1435,35 +1447,33 @@ class TestTraceTypeRules:
     @pytest.mark.parametrize("trace_type", ["downstream", "connected", "isolation", "circuit"])
     def test_stopping_points_rejected_outside_path(self, trace_type: str) -> None:
         with pytest.raises(ValueError, match="only used by path"):
-            svc._validate_generic_trace_request(
-                trace_type, self.START, None, None, [{"global_id": "{z}"}]
-            )
+            svc._validate_trace_request(trace_type, self.START, None, None, [{"global_id": "{z}"}])
 
     def test_circuit_by_name_needs_no_starting_point(self) -> None:
-        starts, _, _ = svc._validate_generic_trace_request(
+        starts, _, _ = svc._validate_trace_request(
             "circuit", None, None, None, None, {"circuitName": "C1"}
         )
         assert starts == []
 
     def test_circuit_without_start_or_name_raises(self) -> None:
         with pytest.raises(ValueError, match="At least one starting point"):
-            svc._validate_generic_trace_request("circuit", None, None, None)
+            svc._validate_trace_request("circuit", None, None, None)
 
     def test_subnetwork_name_with_starts_clears_locations(self) -> None:
-        starts, _, _ = svc._validate_generic_trace_request(
+        starts, _, _ = svc._validate_trace_request(
             "subnetworkController", self.START, None, "RMT001"
         )
         assert starts == []
 
     def test_shortest_path_message_points_to_path(self) -> None:
         with pytest.raises(ValueError, match="path trace"):
-            svc._validate_generic_trace_request("shortestPath", self.START, None, None)
+            svc._validate_trace_request("shortestPath", self.START, None, None)
 
     def test_warnings_for_shortest_path_and_path_without_stop(self) -> None:
-        assert "deprecated" in svc._generic_trace_warnings("shortestPath", None)[0]
-        assert "stopping point" in svc._generic_trace_warnings("path", None)[0]
-        assert svc._generic_trace_warnings("path", [{"global_id": "{z}"}]) == []
-        assert svc._generic_trace_warnings("connected", None) == []
+        assert "deprecated" in svc._trace_warnings("shortestPath", None)[0]
+        assert "stopping point" in svc._trace_warnings("path", None)[0]
+        assert svc._trace_warnings("path", [{"global_id": "{z}"}]) == []
+        assert svc._trace_warnings("connected", None) == []
 
 
 class TestFilterBarrierDetection:
@@ -1480,26 +1490,26 @@ class TestFilterBarrierDetection:
         assert not svc._has_filter_barrier({"filterBarriers": []}, [{"globalId": "{a}"}])
 
 
-class TestGenericConfigurationMerge:
+class TestTraceConfigurationMerge:
     def test_empty_hint_values_are_filled_but_populated_are_kept(self) -> None:
-        config = svc._generic_trace_configuration(
+        config = svc._build_trace_configuration(
             {"tierName": "", "domainNetworkName": "Keep"}, "Other", "Dist", None
         )
         assert config["tierName"] == "Dist"
         assert config["domainNetworkName"] == "Keep"
 
     def test_target_tier_hint(self) -> None:
-        config = svc._generic_trace_configuration(None, "Electric", "Dist", None, "Transmission")
+        config = svc._build_trace_configuration(None, "Electric", "Dist", None, "Transmission")
         assert config["targetTierName"] == "Transmission"
 
     def test_overrides_replace_values(self) -> None:
-        config = svc._generic_trace_configuration(
+        config = svc._build_trace_configuration(
             {"includeContainers": False}, None, None, None, None, {"includeContainers": True}
         )
         assert config == {"includeContainers": True}
 
 
-class TestRunGenericTraceByType:
+class TestRunUtilityNetworkTraceByType:
     URL = "https://server/arcgis/rest/services/UN/FeatureServer"
     RESOLUTION: ClassVar[dict[str, Any]] = {
         "status": svc.TIER_RESOLVED,
@@ -1520,7 +1530,7 @@ class TestRunGenericTraceByType:
             patch.object(svc, "_resolve_feature_tier", return_value=self.RESOLUTION),
             patch.object(svc, "_parse_tier_definition", return_value=({}, self.TIER)),
         ):
-            svc.run_generic_trace(MagicMock(), self.URL, **kwargs)
+            svc.run_utility_network_trace(MagicMock(), self.URL, **kwargs)
         return manager.trace.call_args.kwargs
 
     @pytest.mark.parametrize("trace_type", ["subnetwork", "subnetworkController", "upstream"])
@@ -1600,17 +1610,17 @@ class TestRunGenericTraceByType:
         assert kwargs["locations"][-1]["isFilterBarrier"] is True
 
 
-class TestNetworkGenericTraceToolWarnings:
+class TestUtilityNetworkTraceToolWarnings:
     URL = "https://server/arcgis/rest/services/UN/FeatureServer"
 
     async def test_isolation_error_returned_not_raised(self) -> None:
         with (
             patch.object(svc, "_connect_gis", return_value=MagicMock()),
             patch.object(
-                svc, "run_generic_trace", side_effect=ValueError("needs a filter barrier")
+                svc, "run_utility_network_trace", side_effect=ValueError("needs a filter barrier")
             ),
         ):
-            result = await svc.network_generic_trace(
+            result = await svc.utility_network_trace(
                 trace_type="isolation",
                 starting_points=[{"global_id": "{a}"}],
                 network_service_url=self.URL,
@@ -1621,10 +1631,10 @@ class TestNetworkGenericTraceToolWarnings:
         raw = {"success": True, "traceResults": {"elements": []}}
         with (
             patch.object(svc, "_connect_gis", return_value=MagicMock()),
-            patch.object(svc, "run_generic_trace", return_value=raw),
+            patch.object(svc, "run_utility_network_trace", return_value=raw),
             patch.object(svc, "_enrich_trace_elements", side_effect=lambda r, *_: r),
         ):
-            result = await svc.network_generic_trace(
+            result = await svc.utility_network_trace(
                 trace_type="path",
                 starting_points=[{"global_id": "{a}"}],
                 network_service_url=self.URL,
@@ -1632,7 +1642,7 @@ class TestNetworkGenericTraceToolWarnings:
         assert "stopping point" in result["warnings"][0]
 
     async def test_stopping_points_on_wrong_type_returns_error(self) -> None:
-        result = await svc.network_generic_trace(
+        result = await svc.utility_network_trace(
             trace_type="downstream",
             starting_points=[{"global_id": "{a}"}],
             stopping_points=[{"global_id": "{z}"}],
